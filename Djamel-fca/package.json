@@ -1,0 +1,8 @@
+{
+  "name": "djamel-fca",
+  "version": "4.0.0",
+  "description": "Djamel-FCA — Facebook Client Abstractions للـ DAVID V1. إرسال الصور والفيديوهات والصوت من URL. Copyright © 2025 DJAMEL.",
+  "main": "index.js",
+  "author": "DJAMEL",
+  "license": "MIT"
+}
