@@ -600,54 +600,79 @@ textarea.code{min-height:320px;font-family:'SF Mono','Fira Code',Consolas,monosp
 /* ── Messages ── */
 .chat-messages{
   flex:1;overflow-y:auto;padding:16px 14px;
-  display:flex;flex-direction:column;gap:4px;
+  display:flex;flex-direction:column;gap:6px;
   scroll-behavior:smooth;
 }
 .msg-bubble-wrap{
-  display:flex;align-items:flex-end;gap:6px;
-  animation:msgIn .25s var(--spring);
+  display:flex;align-items:flex-end;gap:8px;
+  animation:msgIn .28s cubic-bezier(.34,1.3,.64,1) both;
 }
-@keyframes msgIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
-.msg-bubble-wrap.from-bot{flex-direction:row-reverse;}
+@keyframes msgIn{
+  from{opacity:0;transform:translateY(12px) scale(.97);}
+  to{opacity:1;transform:translateY(0) scale(1);}
+}
+.msg-bubble-wrap.from-bot{
+  flex-direction:row-reverse;
+  animation:msgInBot .28s cubic-bezier(.34,1.3,.64,1) both;
+}
+@keyframes msgInBot{
+  from{opacity:0;transform:translateY(12px) scale(.97);}
+  to{opacity:1;transform:translateY(0) scale(1);}
+}
 .msg-avatar{
-  width:26px;height:26px;border-radius:50%;flex-shrink:0;
+  width:28px;height:28px;border-radius:50%;flex-shrink:0;
   background:linear-gradient(135deg,var(--blue),var(--purple));
   display:flex;align-items:center;justify-content:center;
   font-size:11px;font-weight:700;overflow:hidden;align-self:flex-end;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
 }
 .msg-bubble{
   max-width:72%;padding:10px 14px;border-radius:18px 18px 18px 4px;
-  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.08);
-  font-size:14px;line-height:1.6;word-break:break-word;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.1);
+  font-size:14px;line-height:1.65;word-break:break-word;
   white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;
-  position:relative;
+  position:relative;box-shadow:0 2px 8px rgba(0,0,0,.2);
+  transition:box-shadow .2s;
 }
+.msg-bubble:hover{box-shadow:0 4px 16px rgba(0,0,0,.3);}
 .from-bot .msg-bubble{
-  background:linear-gradient(135deg,rgba(10,132,255,.25),rgba(191,90,242,.2));
-  border-color:rgba(10,132,255,.3);
+  background:linear-gradient(135deg,rgba(10,132,255,.22),rgba(191,90,242,.18));
+  border-color:rgba(10,132,255,.25);
   border-radius:18px 18px 4px 18px;
-  white-space:pre-wrap;
 }
-.msg-time{font-size:10px;color:var(--t3);margin-top:3px;text-align:right;}
-.from-bot .msg-time{text-align:left;}
-.msg-sender-name{font-size:10px;color:var(--purple);margin-bottom:3px;font-weight:700;}
+.msg-time{font-size:10px;color:var(--t3);margin-top:4px;text-align:right;display:flex;align-items:center;gap:4px;justify-content:flex-end;}
+.from-bot .msg-time{text-align:left;justify-content:flex-start;}
+.msg-sender-name{font-size:10px;color:var(--purple);margin-bottom:3px;font-weight:700;letter-spacing:.3px;}
 .msg-system{
-  text-align:center;padding:4px 12px;font-size:11px;color:var(--t3);
+  text-align:center;padding:4px 14px;font-size:11px;color:var(--t3);
   background:rgba(255,255,255,.04);border-radius:20px;
   margin:4px auto;width:fit-content;max-width:80%;
 }
+/* ── Media attachments ── */
 .msg-attachment{
   display:flex;align-items:center;gap:8px;
-  background:rgba(255,255,255,.06);border-radius:10px;
-  padding:8px 10px;margin-top:4px;font-size:12px;cursor:pointer;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+  border-radius:12px;padding:9px 12px;margin-top:5px;font-size:12px;cursor:pointer;
+  transition:background .18s,transform .15s;
 }
-.msg-attachment:hover{background:rgba(255,255,255,.1);}
-.msg-image{max-width:220px;border-radius:12px;margin-top:4px;cursor:pointer;display:block;}
-.msg-image:hover{opacity:.9;}
-.msg-audio{width:100%;max-width:220px;border-radius:8px;margin-top:4px;}
-.chat-date-sep{text-align:center;font-size:10px;color:var(--t3);padding:8px 0;position:relative;}
+.msg-attachment:hover{background:rgba(255,255,255,.13);transform:translateY(-1px);}
+.msg-image{
+  max-width:240px;max-height:300px;object-fit:cover;
+  border-radius:14px;margin-top:5px;cursor:pointer;display:block;
+  transition:transform .2s,opacity .2s;box-shadow:0 3px 12px rgba(0,0,0,.35);
+}
+.msg-image:hover{transform:scale(1.02);opacity:.93;}
+.msg-video{
+  max-width:240px;border-radius:14px;margin-top:5px;display:block;
+  box-shadow:0 3px 12px rgba(0,0,0,.35);background:#000;
+}
+.msg-audio{
+  width:100%;max-width:240px;border-radius:10px;margin-top:5px;
+  accent-color:var(--blue);
+}
+.chat-date-sep{text-align:center;font-size:10px;color:var(--t3);padding:10px 0;position:relative;}
 .chat-date-sep::before{content:'';position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(255,255,255,.07);}
-.chat-date-sep span{background:#000;position:relative;padding:0 10px;}
+.chat-date-sep span{background:var(--bg);position:relative;padding:0 12px;}
 
 /* ── Chat Input ── */
 .chat-input-area{
@@ -2872,9 +2897,14 @@ function renderChatMessages(msgs) {
     if (m.body) content += `<div class="msg-text">${esc(m.body).replace(/\n/g,"<br>")}</div>`;
     if (m.attachments?.length) {
       m.attachments.forEach(a => {
-        if (a.type === "photo" && a.url) content += `<img class="msg-image" src="${esc(a.url)}" alt="صورة" loading="lazy">`;
-        else if (a.type === "audio" && a.url) content += `<audio class="msg-audio" controls src="${esc(a.url)}"></audio>`;
-        else if (a.url) content += `<div class="msg-attachment">📎 ${esc(a.filename||a.type||"ملف")}</div>`;
+        if ((a.type === "photo" || a.type === "sticker") && a.url)
+          content += `<img class="msg-image" src="${esc(a.url)}" alt="صورة" loading="lazy" onclick="window.open('${esc(a.url)}','_blank')">`;
+        else if (a.type === "video" && a.url)
+          content += `<video class="msg-video" controls src="${esc(a.url)}" preload="metadata"></video>`;
+        else if (a.type === "audio" && a.url)
+          content += `<audio class="msg-audio" controls src="${esc(a.url)}"></audio>`;
+        else if (a.url || a.filename)
+          content += `<div class="msg-attachment">📎 <a href="${esc(a.url||"#")}" target="_blank" style="color:inherit;text-decoration:none;">${esc(a.filename||a.type||"ملف")}</a></div>`;
       });
     }
     const fbUrl = m.senderID ? `https://www.facebook.com/${m.senderID}` : "#";
@@ -2960,13 +2990,13 @@ function appendChatMessage(msg) {
   if (msg.attachments?.length) {
     msg.attachments.forEach(a => {
       if ((a.type === "photo" || a.type === "sticker") && a.url)
-        content += `<img class="msg-image" src="${esc(a.url)}" alt="صورة" loading="lazy" onclick="window.open('${esc(a.url)}')">`;
+        content += `<img class="msg-image" src="${esc(a.url)}" alt="صورة" loading="lazy" onclick="window.open('${esc(a.url)}','_blank')">`;
+      else if (a.type === "video" && a.url)
+        content += `<video class="msg-video" controls src="${esc(a.url)}" preload="metadata"></video>`;
       else if (a.type === "audio" && a.url)
         content += `<audio class="msg-audio" controls src="${esc(a.url)}"></audio>`;
-      else if (a.type === "video" && a.url)
-        content += `<video class="msg-image" controls src="${esc(a.url)}" style="max-width:220px;border-radius:12px;margin-top:4px;"></video>`;
       else if (a.url || a.filename)
-        content += `<div class="msg-attachment">📎 <a href="${esc(a.url||"#")}" target="_blank" style="color:inherit;">${esc(a.filename||a.type||"ملف")}</a></div>`;
+        content += `<div class="msg-attachment">📎 <a href="${esc(a.url||"#")}" target="_blank" style="color:inherit;text-decoration:none;">${esc(a.filename||a.type||"ملف")}</a></div>`;
     });
   }
   if (!content) content = `<div class="msg-text" style="color:var(--t3);font-style:italic">[رسالة فارغة]</div>`;

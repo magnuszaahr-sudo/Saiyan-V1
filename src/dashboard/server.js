@@ -524,11 +524,12 @@ function startDashboard(port = 5000) {
     if (!api) return res.json({ ok: false, error: "البوت غير متصل" });
     const { threadID, data, mimetype, filename, caption } = req.body;
     if (!threadID || !data) return res.json({ ok: false, error: "threadID و data مطلوبان" });
-    const tmpPath = path.join(os.tmpdir(), `david-${Date.now()}-${filename || "file"}`);
+    // Keep real filename in tmpPath so stream.path stays valid (no override needed)
+    const safeName = (filename || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const tmpPath = path.join(os.tmpdir(), `david-${Date.now()}-${safeName}`);
     try {
       fs.writeFileSync(tmpPath, Buffer.from(data, "base64"));
       const stream = fs.createReadStream(tmpPath);
-      stream.path = filename || tmpPath;
       const msg = caption ? { body: String(caption), attachment: stream } : { attachment: stream };
       api.sendMessage(msg, String(threadID), (err, info) => {
         try { fs.unlinkSync(tmpPath); } catch (_) {}
@@ -563,11 +564,12 @@ function startDashboard(port = 5000) {
     if (!api) return res.json({ ok: false, error: "البوت غير متصل" });
     const { threadID, data, mimetype, filename } = req.body;
     if (!threadID || !data) return res.json({ ok: false, error: "threadID و data مطلوبان" });
-    const tmpPath = path.join(os.tmpdir(), `david-${Date.now()}-${filename || "file"}`);
+    // Keep real filename in tmpPath so stream.path stays valid (no override needed)
+    const safeName = (filename || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const tmpPath = path.join(os.tmpdir(), `david-${Date.now()}-${safeName}`);
     try {
       fs.writeFileSync(tmpPath, Buffer.from(data, "base64"));
       const stream = fs.createReadStream(tmpPath);
-      stream.path = filename || tmpPath;
       api.sendMessage({ attachment: stream }, String(threadID), (err, info) => {
         try { fs.unlinkSync(tmpPath); } catch (_) {}
         if (err) return res.json({ ok: false, error: err.message });
