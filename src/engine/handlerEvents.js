@@ -142,7 +142,7 @@ async function onEventCmds(api, event, commands) {
     if (await handleReply(api, event)) return;
   }
 
-  if (type !== "message") return;
+  if (type !== "message" && type !== "message_reply") return;
   if (!body.trim()) return;
 
   // DM lock
