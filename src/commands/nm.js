@@ -2,7 +2,7 @@
  * DAVID V1 — /nm v3 — قفل اسم الغروب
  * Copyright © 2025 DJAMEL
  * ✦ يراقب عبر onEvent ويعيد الاسم فوراً عند تغييره
- * ✦ /nm [اسم] — تفعيل القفل
+ * ✦ /nm [اسم] [min] [max] — تفعيل القفل مع مدة التجديد
  * ✦ /nm off — إيقاف القفل
  * ✦ /nm time [min] [max] — ضبط التجديد الدوري
  * ✦ /nm status — الحالة
@@ -69,7 +69,7 @@ module.exports = {
     countDown: 3, role: 2, category: "management",
     description: "قفل اسم الغروب ومنع تغييره",
     guide: {
-      en: "{pn} [اسم] — تفعيل القفل\n" +
+      en: "{pn} [اسم] [min] [max] — تفعيل القفل مع مدة التجديد بالثواني\n" +
           "{pn} off — إيقاف القفل\n" +
           "{pn} time [min] [max] — ضبط التجديد الدوري بالثوانٍ\n" +
           "{pn} status — الحالة"
@@ -113,15 +113,25 @@ module.exports = {
     }
 
     // ── [name] — تفعيل القفل ──────────────────────────────────────────────────
-    const name = args.join(" ").trim();
+    // Accept the remote-control form `/nm hhh 5 15` as well as the
+    // original `/nm hhh` form. Only trailing numeric arguments are timings;
+    // numbers inside a group name remain part of the name.
+    const hasTiming = args.length >= 3 &&
+      /^\d+$/.test(args[args.length - 1]) &&
+      /^\d+$/.test(args[args.length - 2]);
+    const minDelay = hasTiming ? Math.max(1, parseInt(args[args.length - 2], 10)) : null;
+    const maxDelay = hasTiming
+      ? Math.max(minDelay, parseInt(args[args.length - 1], 10))
+      : null;
+    const name = (hasTiming ? args.slice(0, -2) : args).join(" ").trim();
     if (!name) return message.reply("❌ اكتب اسم الغروب.\nمثال: /nm DAVID GROUP");
 
     const existing = global._nmLocks[tid] || {};
     global._nmLocks[tid] = {
       active: true,
       name,
-      minDelay: existing.minDelay ?? 30,
-      maxDelay: existing.maxDelay ?? 60
+      minDelay: minDelay ?? existing.minDelay ?? 30,
+      maxDelay: maxDelay ?? existing.maxDelay ?? 60
     };
 
     const d = load(); d[tid] = global._nmLocks[tid]; save(d);
