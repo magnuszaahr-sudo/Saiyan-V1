@@ -53,24 +53,6 @@ function clearSilenceWatchdog(tid) {
   if (global.GoatBot.angelSilenceTimers) delete global.GoatBot.angelSilenceTimers[tid];
 }
 
-function reactLaugh(api, messageID) {
-  return new Promise(resolve => {
-    if (!messageID || typeof api?.setMessageReaction !== "function") return resolve(false);
-    let settled = false;
-    const finish = ok => {
-      if (settled) return;
-      settled = true;
-      resolve(Boolean(ok));
-    };
-    try {
-      const result = api.setMessageReaction("😂", String(messageID), err => finish(!err), true);
-      if (result?.then) result.then(() => finish(true)).catch(() => finish(false));
-    } catch (_) {
-      finish(false);
-    }
-  });
-}
-
 function sendLaughAndLeave(api, tid, st) {
   if (st.leaving) return Promise.resolve();
   st.leaving = true;
@@ -79,16 +61,13 @@ function sendLaughAndLeave(api, tid, st) {
   clearSilenceWatchdog(tid);
 
   return (async () => {
-    let reacted = false;
-    try { reacted = await reactLaugh(api, st.lastHumanMessageID); } catch (_) {}
-    // إذا لم يكن لدينا رقم رسالة أو رفضت المنصة التفاعل، أرسل الإيموجي كرسالة.
-    if (!reacted) {
-      try {
-        await new Promise((resolve, reject) => {
-          api.sendMessage("😂", tid, err => err ? reject(err) : resolve());
-        });
-      } catch (_) {}
-    }
+    // أرسل الإيموجي كرسالة مستقلة بدل وضع تفاعل على آخر رسالة، حتى يظهر
+    // فارق الصمت في Messenger بين الرسالتين.
+    try {
+      await new Promise((resolve, reject) => {
+        api.sendMessage("😂", tid, err => err ? reject(err) : resolve());
+      });
+    } catch (_) {}
     await new Promise(resolve => setTimeout(resolve, 1500));
     try {
       const botID = String(api.getCurrentUserID?.() || global.GoatBot?.botID || "");
