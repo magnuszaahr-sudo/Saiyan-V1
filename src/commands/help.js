@@ -143,7 +143,7 @@ const CMD_DETAILS = {
   prefix:       { usage: "/prefix [البادئة الجديدة] — مثال: /prefix !",         role: "👑 Owner",  cat: "النظام" },
   autoseen:     { usage: "/autoseen on|off|status",                              role: "🔑 Admin",  cat: "النظام" },
   uptime:       { usage: "/uptime",                                               role: "👤 User",   cat: "النظام" },
-  chats:        { usage: "/chats count / list / dm on|off / angel",              role: "🔑 Admin",  cat: "النظام" },
+  chats:        { usage: "/chats — اختيار غروب وتفعيل/تعطيل Angel وNM وNick\n/chats count\n/chats dm on|off", role: "🔑 Admin",  cat: "النظام" },
   getstate:     { usage: "/getstate / /getstate cookie / /getstate string",      role: "👑 Owner",  cat: "النظام" },
   help:         { usage: "/help — /help [اسم الأمر]",                            role: "👤 User",   cat: "النظام" },
 };
