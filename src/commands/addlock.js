@@ -19,6 +19,8 @@ const path = require("path");
 const axios = require("axios");
 
 const DATA_FILE = path.join(process.cwd(), "database", "data", "addLockConfig.json");
+const MAX_GROUP_MEMBERS = 250;
+const reconcileLocks = new Map();
 fs.ensureDirSync(path.dirname(DATA_FILE));
 
 // ── استخدم global لمنع فقدان الحالة عند hot-reload ─────────────────────────
@@ -88,7 +90,123 @@ async function addUserToGroup(api, uid, tid) {
   });
 }
 
-// ── معالج حدث مغادرة الغروب ─────────────────────────────────────────────────
+function uniqueIDs(values) {
+  return [...new Set((Array.isArray(values) ? values : []).map(v => {
+    if (v && typeof v === "object") return v.id || v.userID || v.fbId || v.uid || "";
+    return v;
+  }).map(v => String(v || "").trim()).filter(Boolean))];
+}
+
+function getParticipantIDs(info) {
+  return uniqueIDs(info?.participantIDs || info?.participants || []);
+}
+
+function getThreadInfo(api, tid) {
+  return new Promise((resolve, reject) => {
+    if (typeof api?.getThreadInfo !== "function") {
+      return reject(new Error("getThreadInfo غير مدعوم"));
+    }
+    api.getThreadInfo(String(tid), (err, info) => err ? reject(err) : resolve(info || {}));
+  });
+}
+
+function isAlreadyInGroupError(error) {
+  return /already|عضو|member|participant|exists|موجود/i.test(String(error?.message || error || ""));
+}
+
+function removeWaitingAccounts(cfg, tid, ids) {
+  const data = cfg[tid];
+  if (!data?.links?.length || !ids.size) return false;
+  const before = data.links.length;
+  data.links = uniqueIDs(data.links).filter(uid => !ids.has(String(uid)));
+  return data.links.length !== before;
+}
+
+function saveConfigIfChanged(cfg, changed) {
+  if (changed) saveConfig(cfg);
+}
+
+async function reconcileAddLock(api, tid) {
+  const key = String(tid);
+  if (reconcileLocks.has(key)) return reconcileLocks.get(key);
+
+  const job = (async () => {
+    const cfg = loadConfig();
+    const data = cfg[key];
+    if (!data?.enabled || !data?.links?.length) return;
+
+    let members;
+    try {
+      members = new Set(getParticipantIDs(await getThreadInfo(api, key)));
+    } catch (error) {
+      global.log?.warn?.("ADDLOCK", `تعذر قراءة أعضاء الغروب ${key}: ${error.message}`);
+      return;
+    }
+
+    // احذف كل من دخل مسبقاً ثم املأ المقاعد الشاغرة حتى 250 أو نفاد القائمة.
+    while (data.links.length && members.size < MAX_GROUP_MEMBERS) {
+      const changed = removeWaitingAccounts(cfg, key, members);
+      saveConfigIfChanged(cfg, changed);
+      if (!data.links.length) break;
+
+      // إعادة الفحص قبل كل إضافة لتجنب تجاوز الحد عند تزامن أحداث متعددة.
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        members = new Set(getParticipantIDs(await getThreadInfo(api, key)));
+      } catch (error) {
+        global.log?.warn?.("ADDLOCK", `تعذر تحديث أعضاء الغروب ${key}: ${error.message}`);
+        break;
+      }
+      const freshChanged = removeWaitingAccounts(cfg, key, members);
+      saveConfigIfChanged(cfg, freshChanged);
+      if (!data.links.length || members.size >= MAX_GROUP_MEMBERS) break;
+
+      let candidate = String(data.links[0] || "");
+      if (!candidate) break;
+      if (!/^\d{8,20}$/.test(candidate)) {
+        const resolved = await resolveUsername(candidate);
+        if (!resolved) {
+          global.log?.warn?.("ADDLOCK", `تعذر تحويل الحساب المنتظر إلى UID: ${candidate}`);
+          break;
+        }
+        candidate = resolved;
+        data.links[0] = candidate;
+        saveConfig(cfg);
+      }
+      try {
+        await addUserToGroup(api, candidate, key);
+        const current = loadConfig();
+        if (current[key]) {
+          current[key].links = uniqueIDs(current[key].links).filter(id => id !== candidate);
+          current[key].index = 0;
+          saveConfig(current);
+        }
+        members.add(candidate);
+        global.log?.info?.("ADDLOCK", `✅ أُضيف UID ${candidate} إلى الغروب ${key}`);
+      } catch (error) {
+        if (isAlreadyInGroupError(error)) {
+          const current = loadConfig();
+          if (current[key]) {
+            current[key].links = uniqueIDs(current[key].links).filter(id => id !== candidate);
+            saveConfig(current);
+          }
+          members.add(candidate);
+        } else {
+          global.log?.warn?.("ADDLOCK", `فشل إضافة UID ${candidate}: ${error.message}`);
+          break;
+        }
+      }
+    }
+    if (members.size >= MAX_GROUP_MEMBERS) {
+      global.log?.info?.("ADDLOCK", `الغروب ${key} ممتلئ (${members.size}/${MAX_GROUP_MEMBERS})`);
+    }
+  })().finally(() => reconcileLocks.delete(key));
+
+  reconcileLocks.set(key, job);
+  return job;
+}
+
+// ── معالج حدث مغادرة/دخول الغروب ─────────────────────────────────────────────
 function isLeaveEvent(event) {
   const t = event.logMessageType || event.type || "";
   return (
@@ -101,15 +219,34 @@ function isLeaveEvent(event) {
   );
 }
 
+function isJoinEvent(event) {
+  const t = event.logMessageType || event.type || "";
+  return t === "log:subscribe" ||
+    (t === "event" && event.logMessageType === "log:subscribe");
+}
+
+function getAddedUIDs(event) {
+  const d = event.logMessageData || event.eventData || {};
+  return new Set(uniqueIDs(
+    d.addedParticipants ||
+    d.added_participants ||
+    d.participantsAdded ||
+    d.participants_added ||
+    d.participants
+  ));
+}
+
 function getLeftUID(event) {
   const d = event.logMessageData || {};
-  return String(
+  const value =
     d.leftParticipantFbId ||
     d.removedParticipantFbId ||
     (Array.isArray(d.removed_participants) ? d.removed_participants[0] : null) ||
-    (Array.isArray(d.participants)         ? d.participants[0]         : null) ||
-    ""
-  ).trim();
+    (Array.isArray(d.participants) ? d.participants[0] : null) ||
+    "";
+  return value && typeof value === "object"
+    ? String(value.id || value.userID || value.fbId || value.uid || "").trim()
+    : String(value).trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,6 +289,8 @@ module.exports = {
         );
       cfg[tid].enabled = true;
       saveConfig(cfg);
+      // إذا كانت هناك سعة شاغرة، ابدأ الإضافة مباشرة بدون انتظار مغادرة جديدة.
+      reconcileAddLock(api, tid).catch(() => {});
       return message.reply(
         "╔══════════════════════════════╗\n" +
         "║  ✅ تم تفعيل AddLock         ║\n" +
@@ -272,6 +411,7 @@ module.exports = {
     cfg[targetTid].links = resolvedLinks.map(l => l.uid);
     cfg[targetTid].index = 0;
     saveConfig(cfg);
+    if (cfg[targetTid].enabled) reconcileAddLock(api, targetTid).catch(() => {});
 
     message.react("✅", event.messageID);
     const lines = [
@@ -294,34 +434,26 @@ module.exports = {
 
   // ── كشف مغادرة الأعضاء وإضافة حساب بديل ────────────────────────────────────
   onEvent: async function ({ api, event }) {
-    if (!isLeaveEvent(event)) return;
-
     const tid    = String(event.threadID);
     const cfg    = loadConfig();
     const data   = cfg[tid];
     if (!data?.enabled || !data?.links?.length) return;
 
-    const leftUID = getLeftUID(event);
-    // لا نُضيف بديلاً إذا كان الذي غادر هو أدمن البوت
-    if (leftUID && isBotAdmin(leftUID)) return;
-
-    // اختر الحساب التالي بالدوران
-    const links = data.links;
-    const idx   = (data.index || 0) % links.length;
-    const uid   = links[idx];
-
-    // حدّث الفهرس للمرة القادمة
-    cfg[tid].index = (idx + 1) % links.length;
-    saveConfig(cfg);
-
-    // انتظر قليلاً ثم أضف
-    await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
-
-    try {
-      await addUserToGroup(api, uid, tid);
-      if (global.log) global.log.info("ADDLOCK", `✅ أُضيف UID ${uid} إلى الغروب ${tid}`);
-    } catch (e) {
-      if (global.log) global.log.warn("ADDLOCK", `فشل إضافة UID ${uid}: ${e.message}`);
+    // إذا دخل حساب من قائمة الانتظار بأي طريقة، احذفه فوراً من القائمة.
+    if (isJoinEvent(event)) {
+      const added = getAddedUIDs(event);
+      if (added.size && removeWaitingAccounts(cfg, tid, added)) saveConfig(cfg);
+      return;
     }
+
+    if (!isLeaveEvent(event)) return;
+
+    const leftUID = getLeftUID(event);
+    // خروج أي عضو، بما في ذلك خروج أدمن، يفتح مكاناً جديداً.
+    if (leftUID) {
+      global.log?.info?.("ADDLOCK", `رصد خروج UID ${leftUID} من الغروب ${tid}`);
+    }
+    await reconcileAddLock(api, tid);
   },
+  reconcile: reconcileAddLock,
 };

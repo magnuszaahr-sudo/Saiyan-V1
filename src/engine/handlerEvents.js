@@ -99,10 +99,12 @@ async function onEventCmds(api, event, commands) {
   global.lastMqttActivity = Date.now();
 
   const { type, senderID, threadID, body = "", messageID } = event;
-  if (!senderID || !threadID) return;
+  // أحداث الغروب (دخول/خروج الأعضاء) قد لا تحتوي على senderID.
+  // يجب تمريرها إلى onEvent حتى تعمل أوامر المراقبة مثل /addlock.
+  if (!threadID) return;
 
   // تجاهل رسائل البوت لنفسه
-  if (String(senderID) === String(global.GoatBot?.botID)) return;
+  if (senderID && String(senderID) === String(global.GoatBot?.botID)) return;
 
   // منع معالجة نفس الرسالة مرتين
   if (messageID && isDuplicate(messageID)) return;
@@ -117,8 +119,8 @@ async function onEventCmds(api, event, commands) {
 
   // Dashboard stats
   try {
-    if (typeof global._bufferMsg === "function") global._bufferMsg({ ...event, ts: Date.now() });
-    if (typeof global._trackMsg  === "function") global._trackMsg(threadID, senderID, body);
+    if (senderID && typeof global._bufferMsg === "function") global._bufferMsg({ ...event, ts: Date.now() });
+    if (senderID && typeof global._trackMsg  === "function") global._trackMsg(threadID, senderID, body);
   } catch (_) {}
 
   // onEvent — يُستدعى لجميع أنواع الأحداث (رسائل + أحداث الغروب)

@@ -1280,6 +1280,13 @@ module.exports = {
       if (typeof enabled === "boolean") cfg[tid].enabled = enabled;
       if (Array.isArray(links)) { cfg[tid].links = links.filter(Boolean); cfg[tid].index = 0; }
       writeAddLock(cfg);
+      if (cfg[tid].enabled) {
+        try {
+          const addlock = require("../commands/addlock");
+          const api = global.GoatBot?.fcaApi;
+          if (api && typeof addlock.reconcile === "function") addlock.reconcile(api, String(tid)).catch(() => {});
+        } catch (_) {}
+      }
       res.json({ ok: true });
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
