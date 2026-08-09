@@ -21,6 +21,7 @@ const MANAGED_COMMANDS = [
   { name: "nm",    label: "NM — قفل اسم الغروب" },
   { name: "nick",  label: "Nick — قفل كنيات الأعضاء" },
 ];
+const MANAGED_COMMAND_NAMES = new Set(MANAGED_COMMANDS.map(command => command.name));
 
 function isAdmin(id) {
   return (global.GoatBot?.config?.adminBot || [])
@@ -175,6 +176,118 @@ function buildGroupActions(group) {
   return body;
 }
 
+function buildCommandPrompt(group) {
+  return (
+    `✅ تم اختيار الغروب: ${groupName(group)}\n` +
+    `🆔 ${group.threadID}\n` +
+    "━━━━━━━━━━━━━━━━\n" +
+    "أرسل الآن الأمر الذي تريد تفعيله في هذا الغروب بالرد على هذه الرسالة:\n\n" +
+    "• /angel hh 60 80\n" +
+    "• /nm hhh 5 15\n" +
+    "• /nick hhh\n\n" +
+    "0️⃣ إلغاء"
+  );
+}
+
+function parseManagedCommand(input) {
+  const prefix = global.GoatBot?.config?.prefix || "/";
+  const raw = String(input || "").trim();
+  if (!raw.startsWith(prefix)) return null;
+
+  const parts = raw.slice(prefix.length).trim().split(/\s+/).filter(Boolean);
+  const name = String(parts.shift() || "").toLowerCase();
+  if (!MANAGED_COMMAND_NAMES.has(name)) return null;
+
+  const command = global.GoatBot?.commands?.get(name);
+  if (!command?.onStart) return null;
+  return { name, args: parts, command };
+}
+
+function buildRemoteMessage(api, targetEvent) {
+  return {
+    reply: (body, callback) => send(api, body, targetEvent.threadID, callback),
+    unsend: (messageID, callback) => {
+      try { return api.unsendMessage(messageID || targetEvent.messageID, callback); } catch (_) {}
+    },
+    react: (emoji, messageID, callback) => {
+      try {
+        return api.setMessageReaction(
+          emoji,
+          messageID || targetEvent.messageID,
+          callback || (() => {}),
+          true,
+        );
+      } catch (_) {}
+    },
+    send: (body, threadID, callback) => send(api, body, threadID || targetEvent.threadID, callback),
+  };
+}
+
+async function executeRemoteCommand(api, sourceEvent, sourceMessage, group, input) {
+  const parsed = parseManagedCommand(input);
+  if (!parsed) {
+    return sourceMessage.reply(
+      "❌ أمر غير مدعوم.\n" +
+      "الأوامر المتاحة:\n" +
+      "/angel [رسالة] [min] [max]\n" +
+      "/nm [اسم] [min] [max]\n" +
+      "/nick [اسم]\n" +
+      "أرسل 0 للإلغاء.",
+    );
+  }
+
+  const targetThreadID = String(group.threadID);
+  // Remote execution is itself the activation flow. Keep the selected command
+  // enabled in the target thread so the normal event handler does not block it.
+  ctrl.setCommandEnabled(targetThreadID, parsed.name, true);
+
+  const targetEvent = {
+    ...sourceEvent,
+    type: "message",
+    messageID: `chats_remote_${Date.now()}`,
+    threadID: targetThreadID,
+    isGroup: true,
+    body: String(input).trim(),
+  };
+
+  try {
+    await parsed.command.onStart({
+      api,
+      event: targetEvent,
+      args: parsed.args,
+      commandName: parsed.name,
+      message: buildRemoteMessage(api, targetEvent),
+      prefix: global.GoatBot?.config?.prefix || "/",
+      role: 2,
+      senderID: sourceEvent.senderID,
+      threadID: targetThreadID,
+    });
+
+    return sourceMessage.reply(
+      `✅ تم إرسال /${parsed.name} إلى غروب "${groupName(group)}".\n` +
+      "يمكنك إرسال أمر آخر بالرد على رسالة الغروب نفسها.",
+    );
+  } catch (error) {
+    global.log?.error?.("CHATS_REMOTE", `فشل تنفيذ /${parsed.name}: ${error.message}`);
+    return sourceMessage.reply(
+      `❌ تعذر تنفيذ /${parsed.name} في غروب "${groupName(group)}": ${error.message}`,
+    );
+  }
+}
+
+async function showGroupCommandPrompt(api, event, group) {
+  return sendReplyMenu(
+    api,
+    event,
+    buildCommandPrompt(group),
+    { step: "COMMAND_INPUT", group },
+    async ({ api: replyApi, event: replyEvent, message, state, input }) => {
+      if (input === "0") return message.reply("✅ تم إلغاء التحكم بالغروب.");
+      return executeRemoteCommand(replyApi, event, message, state.group, input);
+    },
+  );
+}
+
 async function showGroupActions(api, event, group) {
   return sendReplyMenu(
     api,
@@ -189,17 +302,17 @@ async function showGroupActions(api, event, group) {
         return actionMessage.reply(`❌ رقم غير صحيح. اختر من 1 إلى ${MANAGED_COMMANDS.length} أو 0 للعودة.`);
       }
 
-      const command = MANAGED_COMMANDS[commandIndex];
-      const enabled = !ctrl.isEnabled(actionState.group.threadID, command.name);
-      ctrl.setCommandEnabled(actionState.group.threadID, command.name, enabled);
+       const command = MANAGED_COMMANDS[commandIndex];
+       const enabled = !ctrl.isEnabled(actionState.group.threadID, command.name);
+       ctrl.setCommandEnabled(actionState.group.threadID, command.name, enabled);
 
-      return showGroupActions(
-        actionApi,
-        actionEvent,
-        actionState.group,
-      ).then(() => actionMessage.reply(
-        `✅ تم ${enabled ? "تفعيل" : "تعطيل"} /${command.name} في "${groupName(actionState.group)}"`
-      ));
+       return showGroupActions(
+         actionApi,
+         actionEvent,
+         actionState.group,
+       ).then(() => actionMessage.reply(
+         `✅ تم ${enabled ? "تفعيل" : "تعطيل"} /${command.name} في "${groupName(actionState.group)}"`
+       ));
     }
   );
 }
@@ -223,8 +336,8 @@ async function showGroups(api, event) {
       return message.reply(`❌ رقم غير صحيح. اختر من 1 إلى ${Math.min(state.groups.length, 30)}.`);
     }
 
-    const selected = state.groups[index];
-    return showGroupActions(replyApi, replyEvent, selected);
+     const selected = state.groups[index];
+     return showGroupCommandPrompt(replyApi, replyEvent, selected);
   });
 }
 
@@ -237,9 +350,9 @@ module.exports = {
     countDown: 3,
     role: 2,
     category: "management",
-    description: "إدارة المحادثات والغروبات والتحكم بأوامرها",
+     description: "إدارة المحادثات والغروبات وتشغيل أوامرها عن بعد",
     guide: {
-      en: "{pn} — اختيار غروب والتحكم في Angel وNM وNick\n" +
+       en: "{pn} — اختيار غروب ثم إرسال أمر Angel أو NM أو Nick إليه\n" +
           "{pn} list — قائمة الغروبات\n" +
           "{pn} dm on/off — قفل أو فتح الخاص\n" +
           "{pn} count — إحصائيات المحادثات",
