@@ -1,9 +1,9 @@
 /**
  * DAVID V1 — /angel v5 — رسائل تلقائية مع نظام مراقبة ذكي
  * Copyright © 2025 DJAMEL
- * ✦ يتوقف مؤقتاً إذا كان البوت آخر 3 مرات بدون رد بشري
+ * ✦ يتوقف مؤقتاً بعد 3 رسائل متتالية بدون رد بشري
  * ✦ يستأنف عند أول رسالة بشرية
- * ✦ يغادر المجموعة بعد 16 دقيقة من الصمت
+ * ✦ يبدأ عدّاد الخروج بعد التوقف، ويغادر بعد 16 دقيقة من الصمت
  */
 "use strict";
 const fs   = require("fs-extra");
@@ -17,10 +17,11 @@ function save(d)  { fs.ensureDirSync(path.dirname(DATA)); fs.writeFileSync(DATA,
 function rand(a, b) { return a + Math.random() * (b - a); }
 
 // ── Global state ──────────────────────────────────────────────────────────────
+if (!global.GoatBot) global.GoatBot = {};
 if (!global.GoatBot.angelIntervals) global.GoatBot.angelIntervals = {};
 if (!global.GoatBot.angelSilenceTimers) global.GoatBot.angelSilenceTimers = {};
 if (!global._angelState)            global._angelState = {};
-// _angelState[tid] = { consecutive, paused, lastHumanTs, lastHumanMessageID, leaving }
+// _angelState[tid] = { consecutive, paused, pausedAt, lastHumanTs, lastHumanMessageID, leaving }
 
 // ── Human-message listener (registered once) ──────────────────────────────────
 if (!global._msgListeners)            global._msgListeners = [];
@@ -32,9 +33,10 @@ if (!global._angelListenerRegistered) {
     st.consecutive = 0;
     st.lastHumanTs = Date.now();
     if (messageID) st.lastHumanMessageID = String(messageID);
-    st.leaving = false;
     if (st.paused) {
       st.paused = false;
+      st.pausedAt = null;
+      clearSilenceWatchdog(threadID);
       const data = load();
       const td   = data[threadID];
       if (td?.active && global.GoatBot?.fcaApi)
@@ -91,15 +93,15 @@ function scheduleSilenceWatchdog(api, tid) {
   const key = String(tid);
   clearSilenceWatchdog(key);
   const st = global._angelState[key];
-  if (!st || st.leaving) return;
-  const elapsed = Date.now() - (st.lastHumanTs || Date.now());
+  if (!st || st.leaving || !st.paused) return;
+  const elapsed = Date.now() - (st.pausedAt || Date.now());
   const remaining = Math.max(0, SILENCE_MS - elapsed);
   global.GoatBot.angelSilenceTimers[key] = setTimeout(async () => {
     delete global.GoatBot.angelSilenceTimers[key];
     const fresh = load()[key];
     const current = global._angelState[key];
-    if (!fresh?.active || !current || current.leaving) return;
-    if (Date.now() - (current.lastHumanTs || Date.now()) < SILENCE_MS) {
+    if (!fresh?.active || !current || current.leaving || !current.paused) return;
+    if (Date.now() - (current.pausedAt || Date.now()) < SILENCE_MS) {
       scheduleSilenceWatchdog(api, key);
       return;
     }
@@ -115,11 +117,10 @@ function scheduleNext(api, tid, td) {
 
   if (!global._angelState[tid])
     global._angelState[tid] = {
-      consecutive: 0, paused: false, lastHumanTs: Date.now(),
+      consecutive: 0, paused: false, pausedAt: null, lastHumanTs: Date.now(),
       lastHumanMessageID: null, leaving: false,
     };
   if (global._angelState[tid].paused) return;
-  scheduleSilenceWatchdog(api, tid);
 
   const ms = Math.round(rand(td.minSeconds ?? 60, td.maxSeconds ?? td.minSeconds ?? 60) * 1000);
 
@@ -133,8 +134,10 @@ function scheduleNext(api, tid, td) {
     // ── 3 رسائل متتالية → توقف مؤقت ─────────────────────────────────────────
     if ((st.consecutive || 0) >= 3) {
       st.paused = true;
+      st.pausedAt = Date.now();
       global._angelState[tid] = st;
-      return; // المستمع سيستأنف عند رسالة بشرية
+      scheduleSilenceWatchdog(api, tid);
+      return; // المستمع سيلغي المؤقت ويستأنف عند رسالة بشرية
     }
 
     // ── إرسال ────────────────────────────────────────────────────────────────
@@ -147,7 +150,19 @@ function scheduleNext(api, tid, td) {
     } catch (_) {}
 
     const next = load()[tid];
-    if (next?.active) scheduleNext(api, tid, next);
+    if (!next?.active) return;
+
+    // بعد الرسالة الثالثة يتوقف Angel فوراً ويبدأ عدّاد الصمت.
+    // لا ننتظر دورة إرسال رابعة حتى نكتشف أنه وصل للحد.
+    if ((st.consecutive || 0) >= 3) {
+      st.paused = true;
+      st.pausedAt = Date.now();
+      global._angelState[tid] = st;
+      scheduleSilenceWatchdog(api, tid);
+      return;
+    }
+
+    scheduleNext(api, tid, next);
   }, ms);
 }
 
@@ -160,11 +175,11 @@ function restoreAll(api) {
     if (td.active && td.message) {
       if (!global._angelState[tid])
         global._angelState[tid] = {
-          consecutive: 0, paused: false, lastHumanTs: Date.now(),
+          consecutive: 0, paused: false, pausedAt: null, lastHumanTs: Date.now(),
           lastHumanMessageID: null, leaving: false,
         };
       scheduleNext(api, tid, td);
-      scheduleSilenceWatchdog(api, tid);
+      if (global._angelState[tid].paused) scheduleSilenceWatchdog(api, tid);
     }
   }
 }
@@ -217,7 +232,7 @@ module.exports = {
     save(data);
 
     global._angelState[tid] = {
-      consecutive: 0, paused: false, lastHumanTs: Date.now(),
+      consecutive: 0, paused: false, pausedAt: null, lastHumanTs: Date.now(),
       lastHumanMessageID: null, leaving: false,
     };
     scheduleNext(api, tid, data[tid]);
@@ -227,8 +242,14 @@ module.exports = {
       `📝 "${msg}"\n` +
       `⏱ كل ${minS}–${maxS} ثانية\n` +
       `🧠 يتوقف بعد 3 رسائل بدون رد\n` +
-      `⚠️ يغادر بعد 16 دقيقة صمت`
+      `⚠️ بعد التوقف ينتظر 16 دقيقة من الصمت ثم يرسل 😂 ويغادر`
     );
   },
-  _test: { sendLaughAndLeave, scheduleSilenceWatchdog, clearSilenceWatchdog, SILENCE_MS },
+  _test: {
+    sendLaughAndLeave,
+    scheduleNext,
+    scheduleSilenceWatchdog,
+    clearSilenceWatchdog,
+    SILENCE_MS,
+  },
 };
