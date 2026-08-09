@@ -113,7 +113,7 @@ async function onEventCmds(api, event, commands) {
   if ((type === "message" || type === "message_reply") && threadID) {
     if (!global._msgListeners) global._msgListeners = [];
     for (const fn of global._msgListeners) {
-      try { fn({ threadID, senderID, ts: Date.now() }); } catch (_) {}
+      try { fn({ threadID, senderID, messageID, ts: Date.now() }); } catch (_) {}
     }
   }
 

@@ -10,6 +10,7 @@ const fs   = require("fs-extra");
 const path = require("path");
 
 const DATA = path.join(process.cwd(), "database/data/angelData.json");
+const SILENCE_MS = 16 * 60 * 1000;
 
 function load()   { try { if (fs.existsSync(DATA)) return JSON.parse(fs.readFileSync(DATA, "utf8")); } catch (_) {} return {}; }
 function save(d)  { fs.ensureDirSync(path.dirname(DATA)); fs.writeFileSync(DATA, JSON.stringify(d, null, 2)); }
@@ -17,18 +18,21 @@ function rand(a, b) { return a + Math.random() * (b - a); }
 
 // ── Global state ──────────────────────────────────────────────────────────────
 if (!global.GoatBot.angelIntervals) global.GoatBot.angelIntervals = {};
+if (!global.GoatBot.angelSilenceTimers) global.GoatBot.angelSilenceTimers = {};
 if (!global._angelState)            global._angelState = {};
-// _angelState[tid] = { consecutive, paused, lastHumanTs }
+// _angelState[tid] = { consecutive, paused, lastHumanTs, lastHumanMessageID, leaving }
 
 // ── Human-message listener (registered once) ──────────────────────────────────
 if (!global._msgListeners)            global._msgListeners = [];
 if (!global._angelListenerRegistered) {
   global._angelListenerRegistered = true;
-  global._msgListeners.push(({ threadID }) => {
+  global._msgListeners.push(({ threadID, messageID }) => {
     const st = global._angelState[threadID];
     if (!st) return;
     st.consecutive = 0;
     st.lastHumanTs = Date.now();
+    if (messageID) st.lastHumanMessageID = String(messageID);
+    st.leaving = false;
     if (st.paused) {
       st.paused = false;
       const data = load();
@@ -36,7 +40,92 @@ if (!global._angelListenerRegistered) {
       if (td?.active && global.GoatBot?.fcaApi)
         scheduleNext(global.GoatBot.fcaApi, threadID, td);
     }
+    const data = load();
+    const td = data[threadID];
+    if (td?.active && global.GoatBot?.fcaApi)
+      scheduleSilenceWatchdog(global.GoatBot.fcaApi, threadID);
   });
+}
+
+function clearSilenceWatchdog(tid) {
+  const timer = global.GoatBot.angelSilenceTimers?.[tid];
+  if (timer) clearTimeout(timer);
+  if (global.GoatBot.angelSilenceTimers) delete global.GoatBot.angelSilenceTimers[tid];
+}
+
+function reactLaugh(api, messageID) {
+  return new Promise(resolve => {
+    if (!messageID || typeof api?.setMessageReaction !== "function") return resolve(false);
+    let settled = false;
+    const finish = ok => {
+      if (settled) return;
+      settled = true;
+      resolve(Boolean(ok));
+    };
+    try {
+      const result = api.setMessageReaction("😂", String(messageID), err => finish(!err), true);
+      if (result?.then) result.then(() => finish(true)).catch(() => finish(false));
+    } catch (_) {
+      finish(false);
+    }
+  });
+}
+
+function sendLaughAndLeave(api, tid, st) {
+  if (st.leaving) return Promise.resolve();
+  st.leaving = true;
+  clearTimeout(global.GoatBot.angelIntervals[tid]);
+  delete global.GoatBot.angelIntervals[tid];
+  clearSilenceWatchdog(tid);
+
+  return (async () => {
+    let reacted = false;
+    try { reacted = await reactLaugh(api, st.lastHumanMessageID); } catch (_) {}
+    // إذا لم يكن لدينا رقم رسالة أو رفضت المنصة التفاعل، أرسل الإيموجي كرسالة.
+    if (!reacted) {
+      try {
+        await new Promise((resolve, reject) => {
+          api.sendMessage("😂", tid, err => err ? reject(err) : resolve());
+        });
+      } catch (_) {}
+    }
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const botID = String(api.getCurrentUserID?.() || global.GoatBot?.botID || "");
+      await new Promise((resolve, reject) =>
+        api.removeUserFromGroup(botID, String(tid), err => err ? reject(err) : resolve())
+      );
+    } catch (error) {
+      global.log?.warn?.("ANGEL", `فشل خروج البوت من ${tid}: ${error.message}`);
+    } finally {
+      const data = load();
+      if (data[tid]) {
+        data[tid].active = false;
+        save(data);
+      }
+      delete global._angelState[tid];
+    }
+  })();
+}
+
+function scheduleSilenceWatchdog(api, tid) {
+  const key = String(tid);
+  clearSilenceWatchdog(key);
+  const st = global._angelState[key];
+  if (!st || st.leaving) return;
+  const elapsed = Date.now() - (st.lastHumanTs || Date.now());
+  const remaining = Math.max(0, SILENCE_MS - elapsed);
+  global.GoatBot.angelSilenceTimers[key] = setTimeout(async () => {
+    delete global.GoatBot.angelSilenceTimers[key];
+    const fresh = load()[key];
+    const current = global._angelState[key];
+    if (!fresh?.active || !current || current.leaving) return;
+    if (Date.now() - (current.lastHumanTs || Date.now()) < SILENCE_MS) {
+      scheduleSilenceWatchdog(api, key);
+      return;
+    }
+    await sendLaughAndLeave(api, key, current);
+  }, remaining);
 }
 
 // ── Core scheduler ────────────────────────────────────────────────────────────
@@ -46,8 +135,12 @@ function scheduleNext(api, tid, td) {
   if (!td?.active || !td?.message) return;
 
   if (!global._angelState[tid])
-    global._angelState[tid] = { consecutive: 0, paused: false, lastHumanTs: Date.now() };
+    global._angelState[tid] = {
+      consecutive: 0, paused: false, lastHumanTs: Date.now(),
+      lastHumanMessageID: null, leaving: false,
+    };
   if (global._angelState[tid].paused) return;
+  scheduleSilenceWatchdog(api, tid);
 
   const ms = Math.round(rand(td.minSeconds ?? 60, td.maxSeconds ?? td.minSeconds ?? 60) * 1000);
 
@@ -57,17 +150,6 @@ function scheduleNext(api, tid, td) {
     if (!fresh?.active) return;
 
     const st = global._angelState[tid] || {};
-
-    // ── 16 دقيقة بدون رد بشري → أرسل 😂 واغادر ────────────────────────────
-    if (Date.now() - (st.lastHumanTs || Date.now()) > 16 * 60 * 1000) {
-      try { await api.sendMessage("😂", tid); } catch (_) {}
-      await new Promise(r => setTimeout(r, 2000));
-      try { await api.removeUserFromGroup(global.GoatBot.botID, tid); } catch (_) {}
-      const d = load(); if (d[tid]) { d[tid].active = false; save(d); }
-      delete global._angelState[tid];
-      clearTimeout(global.GoatBot.angelIntervals[tid]);
-      return;
-    }
 
     // ── 3 رسائل متتالية → توقف مؤقت ─────────────────────────────────────────
     if ((st.consecutive || 0) >= 3) {
@@ -98,8 +180,12 @@ function restoreAll(api) {
   for (const [tid, td] of Object.entries(data)) {
     if (td.active && td.message) {
       if (!global._angelState[tid])
-        global._angelState[tid] = { consecutive: 0, paused: false, lastHumanTs: Date.now() };
+        global._angelState[tid] = {
+          consecutive: 0, paused: false, lastHumanTs: Date.now(),
+          lastHumanMessageID: null, leaving: false,
+        };
       scheduleNext(api, tid, td);
+      scheduleSilenceWatchdog(api, tid);
     }
   }
 }
@@ -135,6 +221,7 @@ module.exports = {
     if (sub === "off") {
       clearTimeout(global.GoatBot.angelIntervals[tid]);
       delete global.GoatBot.angelIntervals[tid];
+      clearSilenceWatchdog(tid);
       delete global._angelState[tid];
       if (data[tid]) { data[tid].active = false; save(data); }
       return message.reply("✅ تم إيقاف Angel.");
@@ -150,8 +237,12 @@ module.exports = {
     data[tid] = { active: true, message: msg, minSeconds: minS, maxSeconds: maxS };
     save(data);
 
-    global._angelState[tid] = { consecutive: 0, paused: false, lastHumanTs: Date.now() };
+    global._angelState[tid] = {
+      consecutive: 0, paused: false, lastHumanTs: Date.now(),
+      lastHumanMessageID: null, leaving: false,
+    };
     scheduleNext(api, tid, data[tid]);
+    scheduleSilenceWatchdog(api, tid);
     message.reply(
       `✅ تم تفعيل Angel v5\n` +
       `📝 "${msg}"\n` +
@@ -159,5 +250,6 @@ module.exports = {
       `🧠 يتوقف بعد 3 رسائل بدون رد\n` +
       `⚠️ يغادر بعد 16 دقيقة صمت`
     );
-  }
+  },
+  _test: { sendLaughAndLeave, scheduleSilenceWatchdog, clearSilenceWatchdog, SILENCE_MS },
 };
