@@ -1,257 +1,628 @@
 /**
- * DAVID V1 — /help — قائمة الأوامر الكاملة (Hybrid Edition)
- * Copyright © 2025 DJAMEL — All rights reserved
- * DAVID V1 + WHITE-V3 merged commands
+ * SAIYAN — /help — Command Center
+ * Copyright © 2026 Magnus
+ * Saiyan Messenger Bot
  */
 "use strict";
 
 const CATEGORIES = [
   {
-    icon: "🛡️",
-    title: "الإدارة والتحكم",
+    icon: "⚡",
+    title: "مركز الإدارة",
     cmds: [
-      { name: "nm",          icon: "🔒", desc: "قفل اسم الغروب ومنع تغييره" },
-      { name: "nick",        icon: "✍️", desc: "قفل كنيات الأعضاء باستمرار" },
-      { name: "groupimg",    icon: "🖼️", desc: "تغيير وقفل صورة الغروب" },
-      { name: "groupname",   icon: "📝", desc: "تغيير اسم الغروب" },
-      { name: "setavatar",   icon: "📸", desc: "تغيير صورة حساب البوت" },
-      { name: "addlock",     icon: "🔐", desc: "قفل عدد أعضاء الغروب تلقائياً" },
-      { name: "thread",      icon: "⚙️", desc: "إعدادات الغروب (ترحيب/وداع)" },
-      { name: "out",         icon: "🚪", desc: "إخراج البوت من الغروب" },
+      { name: "nm",        icon: "🧱", desc: "تثبيت اسم الغروب وحمايته من التغيير" },
+      { name: "nick",      icon: "🎴", desc: "حماية كنيات الأعضاء ومراقبة تغييراتها" },
+      { name: "groupimg",  icon: "🌠", desc: "تغيير صورة الغروب وتثبيتها" },
+      { name: "groupname", icon: "🏷️", desc: "تحديث اسم الغروب بالاسم الذي تحدده" },
+      { name: "setavatar", icon: "🪪", desc: "تعديل صورة حساب سايان" },
+      { name: "addlock",   icon: "🔗", desc: "الحفاظ على عدد أعضاء الغروب" },
+      { name: "thread",    icon: "🧩", desc: "ضبط إعدادات الغروب والرسائل التلقائية" },
+      { name: "out",       icon: "⏏️", desc: "إخراج سايان من الغروب الحالي" },
     ],
   },
+
   {
-    icon: "👥",
-    title: "إدارة الأعضاء",
+    icon: "🧑‍🤝‍🧑",
+    title: "الأعضاء",
     cmds: [
-      { name: "all",         icon: "📢", desc: "تاق جميع أعضاء الغروب" },
-      { name: "tag",         icon: "🏷️", desc: "تاق مجموعات مخصصة" },
-      { name: "kick",        icon: "👢", desc: "طرد عضو من الغروب" },
-      { name: "adduser",     icon: "➕", desc: "إضافة عضو للغروب" },
-      { name: "addadmin",    icon: "👑", desc: "إضافة أو إزالة أدمن البوت" },
-      { name: "ban",         icon: "🚫", desc: "حظر مستخدم من البوت" },
-      { name: "warn",        icon: "⚠️", desc: "تحذير مستخدم (3 تحذيرات = طرد)" },
-      { name: "badwords",    icon: "🤬", desc: "فلتر الكلمات المحظورة تلقائياً" },
+      { name: "all",      icon: "📣", desc: "استدعاء جميع أعضاء الغروب" },
+      { name: "tag",      icon: "🎯", desc: "إنشاء وإدارة مجموعات التاق" },
+      { name: "kick",     icon: "🥾", desc: "إزالة عضو من الغروب" },
+      { name: "adduser",  icon: "➕", desc: "إضافة أعضاء إلى الغروب" },
+      { name: "addadmin", icon: "♛", desc: "إدارة مشرفي سايان" },
+      { name: "ban",      icon: "🚷", desc: "منع مستخدم من استعمال البوت" },
+      { name: "warn",     icon: "🚨", desc: "إدارة التحذيرات والتنبيهات" },
+      { name: "badwords", icon: "🧼", desc: "تنقية المحادثة من الكلمات المحددة" },
     ],
   },
+
   {
-    icon: "💬",
-    title: "الرسائل التلقائية",
+    icon: "🔄",
+    title: "التشغيل التلقائي",
     cmds: [
-      { name: "angel",       icon: "👼", desc: "رسائل تلقائية دورية للغروبات" },
-      { name: "divel",       icon: "🌀", desc: "رسائل دورية بانتظار عشوائي" },
-      { name: "greet",       icon: "👋", desc: "رسالة ترحيبية بالبوت وأوامره" },
+      { name: "angel", icon: "🪽", desc: "تشغيل رسائل دورية تلقائية" },
+      { name: "divel", icon: "🌘", desc: "إرسال رسائل بفواصل زمنية متغيرة" },
+      { name: "greet", icon: "🌟", desc: "إظهار رسالة ترحيب خاصة بسايان" },
     ],
   },
+
   {
-    icon: "🎭",
-    title: "الترفيه والوسائط",
+    icon: "🎵",
+    title: "الوسائط والترفيه",
     cmds: [
-      { name: "song",        icon: "🎵", desc: "تنزيل أغاني من YouTube" },
-      { name: "video",       icon: "🎬", desc: "تنزيل فيديو من YouTube" },
-      { name: "tiktok",      icon: "📱", desc: "تنزيل فيديو TikTok بدون علامة مائية" },
-      { name: "sticker",     icon: "🎭", desc: "تحويل صورة إلى ملصق" },
-      { name: "sexvid",      icon: "🔞", desc: "فيديو 18+ عشوائي (للمشرفين)" },
-      { name: "webvideo",    icon: "🎥", desc: "بحث وتحميل من xnxx/xvideos/pornhub..." },
-      { name: "pair",        icon: "💑", desc: "ربط عشوائي بين عضوين" },
+      { name: "song",    icon: "🎼", desc: "البحث عن الأغاني وتحميلها" },
+      { name: "video",   icon: "📹", desc: "البحث عن فيديوهات وتحميلها" },
+      { name: "tiktok",  icon: "🎞️", desc: "تحميل فيديوهات TikTok" },
+      { name: "sticker", icon: "🧷", desc: "تحويل الصور إلى ملصقات" },
+      { name: "pair",    icon: "💞", desc: "اختيار شخصين بشكل عشوائي" },
     ],
   },
+
   {
-    icon: "🤖",
+    icon: "🧠",
     title: "الذكاء الاصطناعي",
     cmds: [
-      { name: "ai",          icon: "🧠", desc: "دردشة مع الذكاء الاصطناعي" },
-      { name: "imagegen",    icon: "🎨", desc: "توليد صور بالذكاء الاصطناعي" },
-      { name: "pinterest",   icon: "🖼️", desc: "بحث صور Pinterest" },
-      { name: "webss",       icon: "📸", desc: "لقطة شاشة لأي موقع" },
+      { name: "ai",        icon: "🧬", desc: "محادثة مباشرة مع الذكاء الاصطناعي" },
+      { name: "imagegen",  icon: "🖍️", desc: "إنشاء صور من وصف نصي" },
+      { name: "pinterest", icon: "🔭", desc: "البحث عن صور من Pinterest" },
+      { name: "webss",     icon: "🖥️", desc: "التقاط صورة لصفحة ويب" },
     ],
   },
+
   {
-    icon: "🔧",
-    title: "الأدوات والمعلومات",
+    icon: "🧰",
+    title: "الخدمات",
     cmds: [
-      { name: "translate",   icon: "🌐", desc: "ترجمة النصوص لأي لغة" },
-      { name: "weather",     icon: "🌤️", desc: "حالة الطقس لأي مدينة" },
-      { name: "uid",         icon: "🆔", desc: "معرفة ID الفيسبوك" },
-      { name: "info",        icon: "ℹ️", desc: "معلومات عن الغروب أو شخص" },
-      { name: "ping",        icon: "📡", desc: "قياس زمن استجابة البوت" },
-      { name: "rank",        icon: "🏆", desc: "عرض مستواك ونقاطك XP" },
-      { name: "unsend",      icon: "🗑️", desc: "حذف آخر رسالة للبوت" },
+      { name: "translate", icon: "🔤", desc: "تحويل النص بين اللغات" },
+      { name: "weather",   icon: "🌦️", desc: "معرفة الطقس في مدينة معينة" },
+      { name: "uid",       icon: "🆔", desc: "عرض معرف حساب فيسبوك" },
+      { name: "info",      icon: "📑", desc: "عرض بيانات الغروب أو أحد أعضائه" },
+      { name: "ping",      icon: "📡", desc: "اختبار سرعة استجابة سايان" },
+      { name: "rank",      icon: "🏅", desc: "عرض المستوى ونقاط الخبرة" },
+      { name: "unsend",    icon: "♻️", desc: "إزالة رسالة أرسلها سايان" },
     ],
   },
+
   {
-    icon: "💰",
-    title: "الاقتصاد",
+    icon: "🪙",
+    title: "النظام الاقتصادي",
     cmds: [
-      { name: "economy",     icon: "💵", desc: "رصيدك (balance/daily/bet/slot/pay)" },
+      {
+        name: "economy",
+        icon: "💳",
+        desc: "الرصيد والمكافآت والألعاب المالية",
+      },
     ],
   },
+
   {
-    icon: "⚙️",
-    title: "النظام والإعدادات",
+    icon: "🛠️",
+    title: "إعدادات النظام",
     cmds: [
-      { name: "prefix",      icon: "🔑", desc: "تغيير بادئة الأوامر" },
-      { name: "autoseen",    icon: "👁️", desc: "رؤية الرسائل تلقائياً" },
-      { name: "uptime",      icon: "⏱️", desc: "وقت التشغيل والإحصائيات" },
-      { name: "chats",       icon: "💬", desc: "إدارة المحادثات والغروبات" },
-      { name: "getstate",    icon: "🔑", desc: "الحصول على AppState (للمالك)" },
-      { name: "help",        icon: "❓", desc: "عرض قائمة الأوامر" },
+      {
+        name: "prefix",
+        icon: "🔧",
+        desc: "تغيير رمز بداية الأوامر",
+      },
+      {
+        name: "autoseen",
+        icon: "👁️‍🗨️",
+        desc: "التحكم في مشاهدة الرسائل تلقائياً",
+      },
+      {
+        name: "uptime",
+        icon: "⌛",
+        desc: "معرفة مدة تشغيل سايان",
+      },
+      {
+        name: "chats",
+        icon: "🗃️",
+        desc: "إدارة المحادثات والغروبات",
+      },
+      {
+        name: "getstate",
+        icon: "🗝️",
+        desc: "استخراج AppState للمالك",
+      },
+      {
+        name: "help",
+        icon: "📚",
+        desc: "فتح مركز أوامر سايان",
+      },
     ],
   },
 ];
 
 const CMD_DETAILS = {
-  nm:           { usage: "/nm [اسم] / off / time [min] [max] / status",         role: "🔑 Admin",  cat: "الإدارة" },
-  nick:         { usage: "/nick [اسم] / off / status / حدف",                    role: "🔑 Admin",  cat: "الإدارة" },
-  groupimg:     { usage: "/groupimg [رابط أو صورة] / off / status",             role: "🔑 Admin",  cat: "الإدارة" },
-  groupname:    { usage: "/groupname [الاسم الجديد]",                            role: "🔑 Admin",  cat: "الإدارة" },
-  setavatar:    { usage: "/setavatar [رابط] — أو رد على صورة",                  role: "👑 Owner",  cat: "الإدارة" },
-  addlock:      { usage: "/addlock on|off|status|list|clear / [id] [روابط...]",  role: "👑 Owner",  cat: "الإدارة" },
-  thread:       { usage: "/thread welcome [رسالة] / leave [رسالة] / status",    role: "🔑 Admin",  cat: "الإدارة" },
-  out:          { usage: "/out — خروج البوت من الغروب الحالي",                  role: "👑 Owner",  cat: "الإدارة" },
-  all:          { usage: "/all [رسالة اختيارية] — تاق الكل",                   role: "🔑 Admin",  cat: "الأعضاء" },
-  tag:          { usage: "/tag add [اسم] @tag / [اسم] / list / remove / info",  role: "🔑 Admin",  cat: "الأعضاء" },
-  kick:         { usage: "/kick @شخص — أو رد على رسالته",                       role: "🔑 Admin",  cat: "الأعضاء" },
-  adduser:      { usage: "/adduser [ID أو رابط] / [ID1] [ID2]",                 role: "🔑 Admin",  cat: "الأعضاء" },
-  addadmin:     { usage: "/addadmin [1-3] @tag / list / remove [ID]",            role: "👑 Owner",  cat: "الأعضاء" },
-  ban:          { usage: "/ban @شخص / list / remove [ID]",                       role: "🔑 Admin",  cat: "الأعضاء" },
-  warn:         { usage: "/warn @شخص / clear @شخص / list",                      role: "🔑 Admin",  cat: "الأعضاء" },
-  badwords:     { usage: "/badwords on|off / add [كلمات] / remove / list / unwarn", role: "🔑 Admin", cat: "الأعضاء" },
-  angel:        { usage: "/angel [رسالة] [min-max ثانية] / off / status",       role: "🔑 Admin",  cat: "الرسائل" },
-  divel:        { usage: "/divel [رسالة] [min-max] / off / status",              role: "🔑 Admin",  cat: "الرسائل" },
-  greet:        { usage: "/greet — رسالة ترحيبية",                              role: "👤 User",   cat: "الرسائل" },
-  song:         { usage: "/song [اسم الأغنية أو كلمات]",                        role: "👤 User",   cat: "الترفيه" },
-  video:        { usage: "/video [بحث أو رابط يوتيوب]",                          role: "👤 User",   cat: "الترفيه" },
-  tiktok:       { usage: "/tiktok [بحث أو رابط]",                               role: "👤 User",   cat: "الترفيه" },
-  tik:          { usage: "/tiktok [بحث أو رابط]",                               role: "👤 User",   cat: "الترفيه" },
-  sticker:      { usage: "/sticker — رد على صورة بالأمر",                       role: "👤 User",   cat: "الترفيه" },
-  sexvid:       { usage: "/sexvid — فيديو عشوائي 18+",                          role: "🔑 Admin",  cat: "الترفيه" },
-  webvideo:     { usage: "/webvideo [موقع] [بحث?]\nمواقع: xnxx|xvideos|pornhub|xhamster|redtube|youporn\nردّ بالرقم لتحميل الفيديو", role: "🔑 Admin", cat: "الترفيه" },
-  pair:         { usage: "/pair — اختيار عشوائي / @شخص تحديد",                 role: "👤 User",   cat: "الترفيه" },
-  ai:           { usage: "/ai [سؤالك] / /gpt [سؤالك]",                         role: "👤 User",   cat: "الذكاء" },
-  imagegen:     { usage: "/imagegen [وصف الصورة] / /wgen [prompt]",             role: "👤 User",   cat: "الذكاء" },
-  pinterest:    { usage: "/pinterest [كلمة البحث] / /pin [كلمة]",              role: "👤 User",   cat: "الذكاء" },
-  webss:        { usage: "/webss [رابط الموقع]",                                role: "👤 User",   cat: "الذكاء" },
-  translate:    { usage: "/translate [نص] -> [كود]\n/trans مرحبا -> en",        role: "👤 User",   cat: "الأدوات" },
-  weather:      { usage: "/weather [المدينة]\nمثال: /weather الجزائر",          role: "👤 User",   cat: "الأدوات" },
-  uid:          { usage: "/uid — معرفك / رد على رسالة / @tag",                  role: "👤 User",   cat: "الأدوات" },
-  info:         { usage: "/info — معلومات الغروب / @tag معلومات شخص",           role: "👤 User",   cat: "الأدوات" },
-  ping:         { usage: "/ping — قياس زمن الاستجابة",                          role: "👤 User",   cat: "الأدوات" },
-  rank:         { usage: "/rank — مستواك / /rank @tag — مستوى شخص",            role: "👤 User",   cat: "الأدوات" },
-  unsend:       { usage: "/unsend — حذف آخر رسالة للبوت / رد على رسالته",      role: "👤 User",   cat: "الأدوات" },
-  economy:      { usage: "/balance / /daily / /bet [مبلغ] / /slot [مبلغ] / /pay @شخص [مبلغ]", role: "👤 User", cat: "الاقتصاد" },
-  prefix:       { usage: "/prefix [البادئة الجديدة] — مثال: /prefix !",         role: "👑 Owner",  cat: "النظام" },
-  autoseen:     { usage: "/autoseen on|off|status",                              role: "🔑 Admin",  cat: "النظام" },
-  uptime:       { usage: "/uptime",                                               role: "👤 User",   cat: "النظام" },
-  chats:        { usage: "/chats — اختيار غروب وتفعيل/تعطيل Angel وNM وNick\n/chats count\n/chats dm on|off", role: "🔑 Admin",  cat: "النظام" },
-  getstate:     { usage: "/getstate / /getstate cookie / /getstate string",      role: "👑 Owner",  cat: "النظام" },
-  help:         { usage: "/help — /help [اسم الأمر]",                            role: "👤 User",   cat: "النظام" },
+  nm: {
+    usage: "/nm [اسم] / off / time [min] [max] / status",
+    role: "🔐 Admin",
+    cat: "الإدارة",
+  },
+
+  nick: {
+    usage: "/nick [اسم] / off / status / حدف",
+    role: "🔐 Admin",
+    cat: "الإدارة",
+  },
+
+  groupimg: {
+    usage: "/groupimg [رابط أو صورة] / off / status",
+    role: "🔐 Admin",
+    cat: "الإدارة",
+  },
+
+  groupname: {
+    usage: "/groupname [الاسم الجديد]",
+    role: "🔐 Admin",
+    cat: "الإدارة",
+  },
+
+  setavatar: {
+    usage: "/setavatar [رابط] — أو الرد على صورة",
+    role: "👑 Owner",
+    cat: "الإدارة",
+  },
+
+  addlock: {
+    usage: "/addlock on|off|status|list|clear / [id] [روابط...]",
+    role: "👑 Owner",
+    cat: "الإدارة",
+  },
+
+  thread: {
+    usage: "/thread welcome [رسالة] / leave [رسالة] / status",
+    role: "🔐 Admin",
+    cat: "الإدارة",
+  },
+
+  out: {
+    usage: "/out — إخراج سايان من الغروب",
+    role: "👑 Owner",
+    cat: "الإدارة",
+  },
+
+  all: {
+    usage: "/all [رسالة اختيارية] — استدعاء الجميع",
+    role: "🔐 Admin",
+    cat: "الأعضاء",
+  },
+
+  tag: {
+    usage: "/tag add [اسم] @tag / [اسم] / list / remove / info",
+    role: "🔐 Admin",
+    cat: "الأعضاء",
+  },
+
+  kick: {
+    usage: "/kick @شخص — أو الرد على رسالته",
+    role: "🔐 Admin",
+    cat: "الأعضاء",
+  },
+
+  adduser: {
+    usage: "/adduser [ID أو رابط] / [ID1] [ID2]",
+    role: "🔐 Admin",
+    cat: "الأعضاء",
+  },
+
+  addadmin: {
+    usage: "/addadmin [1-3] @tag / list / remove [ID]",
+    role: "👑 Owner",
+    cat: "الأعضاء",
+  },
+
+  ban: {
+    usage: "/ban @شخص / list / remove [ID]",
+    role: "🔐 Admin",
+    cat: "الأعضاء",
+  },
+
+  warn: {
+    usage: "/warn @شخص / clear @شخص / list",
+    role: "🔐 Admin",
+    cat: "الأعضاء",
+  },
+
+  badwords: {
+    usage: "/badwords on|off / add [كلمات] / remove / list / unwarn",
+    role: "🔐 Admin",
+    cat: "الأعضاء",
+  },
+
+  angel: {
+    usage: "/angel [رسالة] [min-max ثانية] / off / status",
+    role: "🔐 Admin",
+    cat: "التشغيل",
+  },
+
+  divel: {
+    usage: "/divel [رسالة] [min-max] / off / status",
+    role: "🔐 Admin",
+    cat: "التشغيل",
+  },
+
+  greet: {
+    usage: "/greet — عرض رسالة الترحيب",
+    role: "👤 User",
+    cat: "التشغيل",
+  },
+
+  song: {
+    usage: "/song [اسم الأغنية أو كلمات البحث]",
+    role: "👤 User",
+    cat: "الوسائط",
+  },
+
+  video: {
+    usage: "/video [بحث أو رابط يوتيوب]",
+    role: "👤 User",
+    cat: "الوسائط",
+  },
+
+  tiktok: {
+    usage: "/tiktok [بحث أو رابط]",
+    role: "👤 User",
+    cat: "الوسائط",
+  },
+
+  tik: {
+    usage: "/tiktok [بحث أو رابط]",
+    role: "👤 User",
+    cat: "الوسائط",
+  },
+
+  sticker: {
+    usage: "/sticker — الرد على صورة بالأمر",
+    role: "👤 User",
+    cat: "الوسائط",
+  },
+
+  pair: {
+    usage: "/pair — اختيار عشوائي / @شخص لتحديد العضو",
+    role: "👤 User",
+    cat: "الوسائط",
+  },
+
+  ai: {
+    usage: "/ai [سؤالك] / /gpt [سؤالك]",
+    role: "👤 User",
+    cat: "الذكاء",
+  },
+
+  imagegen: {
+    usage: "/imagegen [وصف الصورة] / /wgen [prompt]",
+    role: "👤 User",
+    cat: "الذكاء",
+  },
+
+  pinterest: {
+    usage: "/pinterest [كلمة البحث] / /pin [كلمة]",
+    role: "👤 User",
+    cat: "الذكاء",
+  },
+
+  webss: {
+    usage: "/webss [رابط الموقع]",
+    role: "👤 User",
+    cat: "الذكاء",
+  },
+
+  translate: {
+    usage: "/translate [نص] -> [كود]\n/trans مرحبا -> en",
+    role: "👤 User",
+    cat: "الخدمات",
+  },
+
+  weather: {
+    usage: "/weather [المدينة]\nمثال: /weather طرابلس",
+    role: "👤 User",
+    cat: "الخدمات",
+  },
+
+  uid: {
+    usage: "/uid — معرفك / الرد على رسالة / @tag",
+    role: "👤 User",
+    cat: "الخدمات",
+  },
+
+  info: {
+    usage: "/info — بيانات الغروب / @tag لبيانات شخص",
+    role: "👤 User",
+    cat: "الخدمات",
+  },
+
+  ping: {
+    usage: "/ping — اختبار سرعة الاستجابة",
+    role: "👤 User",
+    cat: "الخدمات",
+  },
+
+  rank: {
+    usage: "/rank — مستواك / /rank @tag — مستوى شخص",
+    role: "👤 User",
+    cat: "الخدمات",
+  },
+
+  unsend: {
+    usage: "/unsend — الرد على رسالة سايان لحذفها",
+    role: "👤 User",
+    cat: "الخدمات",
+  },
+
+  economy: {
+    usage: "/balance / /daily / /bet [مبلغ] / /slot [مبلغ] / /pay @شخص [مبلغ]",
+    role: "👤 User",
+    cat: "الاقتصاد",
+  },
+
+  prefix: {
+    usage: "/prefix [البادئة الجديدة] — مثال: /prefix !",
+    role: "👑 Owner",
+    cat: "النظام",
+  },
+
+  autoseen: {
+    usage: "/autoseen on|off|status",
+    role: "🔐 Admin",
+    cat: "النظام",
+  },
+
+  uptime: {
+    usage: "/uptime — عرض مدة تشغيل سايان",
+    role: "👤 User",
+    cat: "النظام",
+  },
+
+  chats: {
+    usage:
+      "/chats — إدارة الغروبات\n" +
+      "/chats count\n" +
+      "/chats dm on|off",
+    role: "🔐 Admin",
+    cat: "النظام",
+  },
+
+  getstate: {
+    usage: "/getstate / /getstate cookie / /getstate string",
+    role: "👑 Owner",
+    cat: "النظام",
+  },
+
+  help: {
+    usage: "/help — القائمة العامة / /help [الأمر]",
+    role: "👤 User",
+    cat: "النظام",
+  },
 };
 
-const LINE = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+const LINE = "════════════════════════════════════";
 
 function buildHelpAll(prefix) {
   const allCmds = global.GoatBot?.commands;
   let totalCmds = 0;
+
   if (allCmds?.size) {
     const seen = new Set();
-    for (const [, cmd] of allCmds) { if (cmd.config?.name) seen.add(cmd.config.name); }
+
+    for (const [, cmd] of allCmds) {
+      if (cmd.config?.name) {
+        seen.add(cmd.config.name);
+      }
+    }
+
     totalCmds = seen.size;
   } else {
-    for (const cat of CATEGORIES) totalCmds += cat.cmds.length;
+    for (const cat of CATEGORIES) {
+      totalCmds += cat.cmds.length;
+    }
   }
 
   const lines = [];
+
   lines.push(LINE);
-  lines.push("  ✦  D A V I D  V 1  ✦  H Y B R I D");
-  lines.push("  🤖 مساعدك الذكي على ماسنجر");
-  lines.push(`  ⚡ by DJAMEL  •  Prefix: ${prefix}`);
+  lines.push("      S A I Y A N  •  C O M M A N D S");
+  lines.push("      مركز التحكم الذكي لمسنجر");
+  lines.push(`      Magnus  |  Prefix: ${prefix}`);
   lines.push(LINE);
   lines.push("");
 
   for (const cat of CATEGORIES) {
-    const padLen = Math.max(1, 22 - cat.title.length);
-    lines.push(` ╔═ ${cat.icon} ${cat.title} ${"═".repeat(padLen)}╗`);
+    const padLen = Math.max(
+      1,
+      22 - cat.title.length
+    );
+
+    lines.push(
+      ` ╭─ ${cat.icon} ${cat.title} ${"─".repeat(padLen)}╮`
+    );
+
     for (const cmd of cat.cmds) {
-      lines.push(` ║  ${cmd.icon}  ${prefix}${cmd.name.padEnd(13)}${cmd.desc}`);
+      lines.push(
+        ` │ ${cmd.icon} ${prefix}${cmd.name.padEnd(
+          13
+        )} ${cmd.desc}`
+      );
     }
-    lines.push(` ╚${"═".repeat(35)}╝`);
+
+    lines.push(
+      ` ╰${"─".repeat(35)}╯`
+    );
+
     lines.push("");
   }
 
   lines.push(LINE);
-  lines.push(`  📦 الأوامر: ${totalCmds}  •  🛡 الحماية: 20 طبقة`);
-  lines.push(`  ❓ ${prefix}help [اسم الأمر] ← للتفاصيل الكاملة`);
+  lines.push(`  📦 عدد الأوامر: ${totalCmds}`);
+  lines.push(`  🔎 ${prefix}help [الأمر] ← تفاصيل الأمر`);
+  lines.push(`  Magnus  •  Saiyan`);
   lines.push(LINE);
+
   return lines.join("\n");
 }
 
 function buildHelpOne(rawName, prefix) {
-  const name    = rawName.toLowerCase().replace(/^\//, "");
+  const name = String(rawName)
+    .toLowerCase()
+    .replace(/^\//, "");
+
   const allCmds = global.GoatBot?.commands;
 
   let cmd = allCmds?.get(name);
+
   if (!cmd && allCmds) {
     for (const [, c] of allCmds) {
-      if ((c.config?.aliases || []).map(a => String(a).toLowerCase()).includes(name)) {
-        cmd = c; break;
+      if (
+        (c.config?.aliases || [])
+          .map(a => String(a).toLowerCase())
+          .includes(name)
+      ) {
+        cmd = c;
+        break;
       }
     }
   }
 
-  const info    = CMD_DETAILS[name] || CMD_DETAILS[cmd?.config?.name] || {};
-  const config  = cmd?.config || {};
-  const cmdName = config.name || name;
-  const desc    = config.description || config.longDescription || "لا يوجد وصف";
-  const usage   = (config.guide?.en?.replace(/\{p[n]?\}/g, prefix)) || info.usage || `${prefix}${cmdName}`;
-  const role    = info.role || (config.role === 3 ? "👑 Owner" : config.role === 2 ? "🔑 Admin" : "👤 User");
-  const cat     = info.cat  || config.category || "عام";
-  const aliases = (config.aliases || []).filter(Boolean);
+  const info =
+    CMD_DETAILS[name] ||
+    CMD_DETAILS[cmd?.config?.name] ||
+    {};
 
-  let icon = "•";
-  outer: for (const c of CATEGORIES)
-    for (const cm of c.cmds)
-      if (cm.name === cmdName || cm.name === name) { icon = cm.icon; break outer; }
+  const config = cmd?.config || {};
+
+  const cmdName =
+    config.name || name;
+
+  const desc =
+    config.description ||
+    config.longDescription ||
+    "لا توجد تفاصيل إضافية لهذا الأمر.";
+
+  const usage =
+    config.guide?.en
+      ?.replace(/\{p[n]?\}/g, prefix) ||
+    info.usage ||
+    `${prefix}${cmdName}`;
+
+  const role =
+    info.role ||
+    (
+      config.role === 3
+        ? "👑 Owner"
+        : config.role === 2
+          ? "🔐 Admin"
+          : "👤 User"
+    );
+
+  const cat =
+    info.cat ||
+    config.category ||
+    "عام";
+
+  const aliases =
+    (config.aliases || [])
+      .filter(Boolean);
+
+  let icon = "◇";
+
+  outer:
+  for (const c of CATEGORIES) {
+    for (const cm of c.cmds) {
+      if (
+        cm.name === cmdName ||
+        cm.name === name
+      ) {
+        icon = cm.icon;
+        break outer;
+      }
+    }
+  }
 
   const lines = [];
+
   lines.push(LINE);
-  lines.push(`  ${icon}  ${prefix}${cmdName.toUpperCase()}`);
+  lines.push(
+    `  ${icon}  SAIYAN  •  ${prefix}${cmdName.toUpperCase()}`
+  );
   lines.push(LINE);
   lines.push("");
-  lines.push(`  📝 الوصف:`);
+
+  lines.push("  ◈ نبذة عن الأمر:");
   lines.push(`     ${desc}`);
   lines.push("");
-  lines.push(`  📌 الاستخدام:`);
-  for (const l of usage.split("\n")) lines.push(`     ${l}`);
+
+  lines.push("  ◈ طريقة الاستخدام:");
+
+  for (const l of String(usage).split("\n")) {
+    lines.push(`     ${l}`);
+  }
+
   lines.push("");
-  lines.push(`  🏷  الفئة    : ${cat}`);
-  lines.push(`  🔑 الصلاحية : ${role}`);
-  if (aliases.length) lines.push(`  🔀 اختصارات : ${aliases.join("، ")}`);
+
+  lines.push(`  ◇ القسم     : ${cat}`);
+  lines.push(`  ◇ الصلاحية  : ${role}`);
+
+  if (aliases.length) {
+    lines.push(
+      `  ◇ البدائل   : ${aliases.join("، ")}`
+    );
+  }
+
+  lines.push("");
+  lines.push("  Magnus  •  Saiyan");
   lines.push("");
   lines.push(LINE);
+
   return lines.join("\n");
 }
 
 module.exports = {
   config: {
     name: "help",
-    aliases: ["h", "مساعدة", "أوامر", "commands"],
+
+    aliases: [
+      "h",
+      "مساعدة",
+      "أوامر",
+      "commands",
+    ],
+
     version: "5.0",
-    author: "DJAMEL",
+
+    author: "Magnus",
+
     countDown: 3,
+
     role: 0,
+
     category: "info",
-    description: "عرض قائمة الأوامر الكاملة — DAVID V1 Hybrid Edition",
+
+    description:
+      "دليل أوامر Saiyan الكامل",
+
     guide: {
-      en: "{pn} — عرض كل الأوامر\n{pn} [اسم الأمر] — تفاصيل أمر محدد",
+      en:
+        "{pn} — عرض جميع الأوامر\n" +
+        "{pn} [اسم الأمر] — عرض تفاصيل أمر محدد",
     },
   },
 
-  onStart: async function ({ args, message, prefix }) {
+  onStart: async function ({
+    args,
+    message,
+    prefix,
+  }) {
     if (args[0]) {
-      message.reply(buildHelpOne(args[0], prefix));
-    } else {
-      message.reply(buildHelpAll(prefix));
+      return message.reply(
+        buildHelpOne(
+          args[0],
+          prefix
+        )
+      );
     }
+
+    return message.reply(
+      buildHelpAll(prefix)
+    );
   },
 };
