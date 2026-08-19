@@ -1,112 +1,114 @@
-// src/commands/delete.js
-// Command: delete / حذف
-// Deletes a replied-to bot message. Intended for admins.
+/**
+ * DAVID V1 — /delete — حذف رسالة (الرد على رسالة البوت)
+ * Copyright © 2025 DJAMEL
+ * Ported from WHITE-V3 & adapted for DAVID engine
+ * يتحقق من صلاحية إدارة الرسائل (Manage Messages) عبر adminIDs
+ */
+"use strict";
+
+// ── التحقق من صلاحية إدارة الرسائل ──────────────────────────────────────────
+async function canManageMessages(api, senderID, threadID) {
+  const cfg    = global.GoatBot?.config || {};
+  const sid    = String(senderID);
+  const supers = [...(cfg.superAdminBot || []), cfg.ownerID].filter(Boolean).map(String);
+  const admins = (cfg.adminBot || []).map(String);
+
+  // مالك البوت أو الأدمن العام يملكون الصلاحية دائماً
+  if (supers.includes(sid) || admins.includes(sid)) return true;
+
+  // التحقق من صلاحية إدارة الرسائل في الغروب (adminIDs)
+  try {
+    const info = await new Promise((res, rej) =>
+      api.getThreadInfo(String(threadID), (e, d) => e ? rej(e) : res(d))
+    );
+    const groupAdmins = (info?.adminIDs || []).map(a => String(a.id || a));
+    return groupAdmins.includes(sid);
+  } catch (_) {
+    return false;
+  }
+}
 
 module.exports = {
-  name: "delete",
-  aliases: ["حذف"],
-  description: "Delete a replied bot message (admins only).",
-  async execute(client, message, args = {}) {
-    // This command attempts to support multiple bot frameworks (WhatsApp/Baileys, Discord, Telegram).
-    // It checks for a replied message and whether the replied message was sent by a bot, and then
-    // attempts to delete it using the platform-appropriate API. It also attempts an admin check
-    // where a standard field is available. Depending on your repo's framework you may want to
-    // adapt the property names (e.g., `message.quoted`, `message.reference`, `message.reply_to_message`).
+  config: {
+    name: "delete",
+    aliases: ["حذف", "del", "rm"],
+    version: "2.0",
+    author: "DJAMEL",
+    countDown: 3,
+    role: 1,
+    category: "management",
+    description: "حذف رسالة البوت بالرد عليها — يتطلب صلاحية إدارة الرسائل",
+    guide: { en: "{pn} — رد على رسالة البوت لحذفها" }
+  },
 
-    // Helper: reply back to user (best-effort)
-    const reply = async (text) => {
-      try {
-        if (typeof message.reply === "function") return await message.reply(text);
-        if (typeof client.sendMessage === "function" && message.chat) return await client.sendMessage(message.chat, { text });
-        if (typeof client.telegram?.sendMessage === "function") return await client.telegram.sendMessage(message.chat?.id || message.chatId, text);
-        // fallback: console
-        console.log(text);
-      } catch (e) {
-        console.error("Failed to send feedback message:", e);
-      }
-    };
+  onStart: async function ({ api, event, message }) {
+    const { threadID, senderID, messageReply } = event;
 
-    // Admin check helpers (best-effort)
-    const isAdmin = async () => {
-      try {
-        // Discord (discord.js): message.member.permissions
-        if (message.member && typeof message.member.permissions?.has === "function") {
-          return message.member.permissions.has("MANAGE_MESSAGES") || message.member.permissions.has("ADMINISTRATOR");
-        }
-        // Telegram (telegraf): ask telegram for chat member status
-        if (client.telegram && message.chat && message.from) {
-          try {
-            const member = await client.telegram.getChatMember(message.chat.id || message.chatId, message.from.id || message.from);
-            return ["creator", "administrator"].includes(member.status);
-          } catch (e) {
-            // ignore and continue
-          }
-        }
-        // WhatsApp-like: some bots provide isGroupAdmin or isAdmin flags on message
-        if (message.isGroup && (message.isGroupAdmin || message.isAdmin || message.sender?.isAdmin || message.participantIsAdmin)) return true;
-        // Fallback: if the message object says sender is bot owner/creator
-        if (message.isOwner || message.from === client.user?.id || message.author === client.user?.id) return true;
-      } catch (e) {
-        console.error(e);
-      }
-      return false;
-    };
+    // ── التحقق من صلاحية إدارة الرسائل (Manage Messages) ──────────────────
+    const allowed = await canManageMessages(api, senderID, threadID);
+    if (!allowed) {
+      return message.reply(
+        "╔══════════════════════════════╗\n" +
+        "║  ⛔  لا تملك صلاحية          ║\n" +
+        "╠══════════════════════════════╣\n" +
+        "║  هذا الأمر يتطلب صلاحية    ║\n" +
+        "║  إدارة الرسائل (Manage Msg) ║\n" +
+        "╚══════════════════════════════╝"
+      );
+    }
 
-    const allowed = await isAdmin();
-    if (!allowed) return reply("You must be an admin to use this command.");
+    // ── يجب الرد على رسالة ────────────────────────────────────────────────
+    if (!messageReply) {
+      return message.reply(
+        "╔═══════════════════════════╗\n" +
+        "║  🗑️  حذف رسالة البوت    ║\n" +
+        "╠═══════════════════════════╣\n" +
+        "║  رد على رسالة البوت     ║\n" +
+        "║  ثم أرسل /delete        ║\n" +
+        "╚═══════════════════════════╝"
+      );
+    }
 
-    // Platform: WhatsApp/Baileys. Many WA bots attach the quoted message to `message.quoted` or `message.quotedMsg`.
-    const quoted = message.quoted || message.quotedMsg || message.msg?.quoted || (message.reply && message.reply.message) || null;
+    const botID = String(api.getCurrentUserID?.() || global.GoatBot?.botID || "");
+    const targetSender = String(messageReply.senderID || "");
+
+    // يمكن حذف رسائل البوت فقط
+    if (targetSender !== botID) {
+      return message.reply(
+        "╔═══════════════════════════╗\n" +
+        "║  ⛔  يمكنني حذف          ║\n" +
+        "║  رسائل البوت فقط        ║\n" +
+        "╚═══════════════════════════╝"
+      );
+    }
+
+    const targetID = messageReply.messageID;
+
+    // ── الحذف بعدة طرق لتوافق إصدارات fca ──────────────────────────────────
     try {
-      // 1) WhatsApp/Baileys style deletion
-      if (quoted && quoted.key && message.chat && typeof client.sendMessage === "function") {
-        // Baileys supports sending a 'delete' message with the quoted key
+      if (message && typeof message.unsend === "function") {
+        await message.unsend(targetID);
+      } else if (typeof api.unsendMessage === "function") {
+        await new Promise((res, rej) =>
+          api.unsendMessage(targetID, (e) => e ? rej(e) : res())
+        );
+      } else {
+        return message.reply("❌ مكتبة fca لا تدعم الحذف.");
+      }
+
+      // حذف رسالة الأمر نفسها بعد ثانية
+      setTimeout(() => {
         try {
-          await client.sendMessage(message.chat, { delete: quoted.key });
-          return; // done
-        } catch (e) {
-          // Some implementations expose a different method to delete; ignore and continue to other strategies
-          console.warn("WhatsApp-style delete failed, trying other methods:", e?.message || e);
-        }
-      }
+          if (message && typeof message.unsend === "function") {
+            message.unsend(event.messageID);
+          } else {
+            api.unsendMessage(event.messageID, () => {});
+          }
+        } catch (_) {}
+      }, 1000);
 
-      // 2) Discord.js: message.reference.messageId
-      if (message.reference && message.reference.messageId && message.channel && typeof message.channel.messages?.fetch === "function") {
-        const refId = message.reference.messageId;
-        const channel = message.channel;
-        const target = await channel.messages.fetch(refId).catch(() => null);
-        if (!target) return reply("Could not find the replied message to delete.");
-        if (!target.author.bot) return reply("I can only delete messages sent by bots.");
-        await target.delete();
-        return;
-      }
-
-      // 3) Telegram: reply_to_message
-      if (message.reply_to_message && client.telegram && message.chat) {
-        const ref = message.reply_to_message;
-        if (!ref.from?.is_bot) return reply("I can only delete messages sent by bots.");
-        await client.telegram.deleteMessage(message.chat.id || message.chatId, ref.message_id || ref.messageId);
-        return;
-      }
-
-      // 4) Some frameworks provide quoted.messageId + chatId
-      if (quoted && quoted.id && quoted.chat) {
-        // attempt generic deletion API
-        if (typeof client.deleteMessage === "function") {
-          await client.deleteMessage(quoted.chat, quoted.id);
-          return;
-        }
-        if (typeof client.delete === "function") {
-          await client.delete(quoted.chat, quoted.id);
-          return;
-        }
-      }
-
-      // If we reach here, no supported pattern matched
-      return reply("Could not detect a replied bot message or platform not supported by this command. Please reply to the bot message you want to delete and run the command.");
-    } catch (err) {
-      console.error(err);
-      return reply("Failed to delete the replied message. Check bot permissions and that the replied message was sent by the bot.");
+    } catch (e) {
+      return message.reply("❌ فشل الحذف: " + (e.message || JSON.stringify(e)));
     }
   }
 };
