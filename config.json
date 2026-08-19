@@ -1,12 +1,12 @@
 {
-  "botName": "DAVID V1",
+  "botName": "Saiyan",
   "botVersion": "2.0.0",
-  "author": "DJAMEL",
+  "author": "Magnus",
   "prefix": "/",
   "language": "ar",
   "timezone": "Africa/Algiers",
 
-  "ownerID": "100012345678",
+  "ownerID": "61593498145393",
   "adminBot": [100004505559262],
   "superAdminBot": [100004505559262],
 
@@ -24,7 +24,7 @@
 
   "dashboard": {
     "port": 5000,
-    "password": "david2025"
+    "password": "saiyan2026"
   },
 
   "stealth": {
@@ -65,6 +65,6 @@
 
   "database": {
     "type": "sqlite",
-    "path": "data/david.sqlite"
+    "path": "data/saiyan.sqlite"
   }
 }
