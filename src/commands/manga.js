@@ -93,7 +93,7 @@ module.exports = {
   config: {
     name: "manga",
     aliases: ["مانغا", "مانجا", "3asq"],
-    version: "2.0",
+    version: "2.1",
     author: "DJAMEL",
     countDown: 10,
     role: 0,
@@ -122,7 +122,7 @@ module.exports = {
 
       let body = `📚 نتائج البحث: "${query}"\n${LINE}\n`;
       list.forEach((m, i) => { body += `${i + 1}️⃣ ${m.title}\n`; });
-      body += `${LINE}\n📥 ردّ بالرقم (1-${list.length}) لعرض الفصول`;
+      body += `${LINE}\n📥 ردّ بالرقم (1-${list.length}) لاختيار المانغا`;
 
       const listMsg = await message.reply(body);
       message.react("✅", event.messageID);
@@ -164,18 +164,16 @@ module.exports = {
     if (!chapters.length)
       return message.reply(`❌ لا توجد فصول متاحة لـ "${manga.title}"\n🔗 ${manga.url}`);
 
-    const show = chapters.slice(0, 25);
-    let body = `📖 ${manga.title}\n${LINE}\n`;
-    show.forEach((c, i) => { body += `${i + 1}. ${c.name}\n`; });
-    body += `${LINE}\n📥 ردّ بالرقم (1-${show.length}) لقراءة الفصل`;
-    if (chapters.length > show.length) body += `\n(إجمالي الفصول: ${chapters.length})`;
+    const body = `📚 **${manga.title}**\n${LINE}\n` +
+                 `✅ إجمالي الفصول المتاحة: **${chapters.length}** فصل.\n${LINE}\n` +
+                 `👇 ردّ برقم الفصل الذي تريد قراءته مباشرة (1 - ${chapters.length}):`;
 
     const msg = await message.reply(body);
     this._setReply(msg.messageID, event.senderID, async (ctx) => {
       const idx = parseInt(String(ctx.event.body || "").trim()) - 1;
-      if (isNaN(idx) || idx < 0 || idx >= show.length)
-        return ctx.message.reply("❌ رقم غير صالح.");
-      await this._sendPages(ctx, manga.title, show[idx], 0);
+      if (isNaN(idx) || idx < 0 || idx >= chapters.length)
+        return ctx.message.reply(`❌ يرجى كتابة رقم فصل صحيح بين 1 و ${chapters.length}`);
+      await this._sendPages(ctx, manga.title, chapters[idx], 0);
     });
   },
 
