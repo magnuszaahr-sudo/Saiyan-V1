@@ -1,59 +1,107 @@
-/**
- * DAVID V1 — /uptime — وقت تشغيل البوت مع إحصائيات
- * Copyright © 2025 DJAMEL
+ /**
+ * SAIYAN — /uptime
+ * Copyright © 2026 MAGNUS
  */
 "use strict";
+
 const os = require("os");
 
 function formatUptime(ms) {
-  const s = Math.floor(ms / 1000);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const parts = [];
-  if (d) parts.push(`${d} يوم`);
-  if (h) parts.push(`${h} ساعة`);
-  if (m) parts.push(`${m} دقيقة`);
-  parts.push(`${sec} ثانية`);
-  return parts.join(" و ");
+  const totalSeconds = Math.floor(ms / 1000);
+
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const result = [];
+
+  if (days > 0) result.push(`${days}d`);
+  if (hours > 0) result.push(`${hours}h`);
+  if (minutes > 0) result.push(`${minutes}m`);
+
+  result.push(`${seconds}s`);
+
+  return result.join(" ");
 }
 
 module.exports = {
   config: {
-    name: "uptime", aliases: ["up","ping","وقت"], version: "2.0", author: "DJAMEL",
-    countDown: 5, role: 2, category: "info",
-    description: "عرض وقت تشغيل البوت مع الإحصائيات",
-    guide: { en: "{pn} — عرض الإحصائيات" }
+    name: "uptime",
+    aliases: ["up", "ping", "وقت"],
+    version: "3.0",
+    author: "MAGNUS",
+    countDown: 5,
+    role: 2,
+    category: "info",
+
+    description: "إظهار حالة سايان ومعلومات التشغيل",
+
+    guide: {
+      en: "{pn} — فحص حالة البوت"
+    }
   },
 
   onStart: async function({ api, event, message }) {
-    const start = global.GoatBot?.startTime || Date.now();
-    const upMs  = Date.now() - start;
-    const mem   = process.memoryUsage();
-    const sysM  = { total: os.totalmem(), free: os.freemem() };
-    const cmds  = global.GoatBot?.commands?.size || 0;
-    const uid   = global.GoatBot?.botID || "—";
-    const prefix = global.GoatBot?.config?.prefix || "/";
+    const bootTime =
+      global.GoatBot?.startTime || Date.now();
 
-    const ping = Date.now();
-    await new Promise(r => setTimeout(r, 10));
-    const pong = Date.now() - ping;
+    const uptime = Date.now() - bootTime;
 
-    const lines = [
-      `╔════ DAVID V1 — Status ════╗`,
-      `║ 🤖 Bot ID: ${uid}`,
-      `║ ⏱ Uptime: ${formatUptime(upMs)}`,
-      `║ 🏓 Ping: ${pong}ms`,
-      `║ 📦 Commands: ${cmds}`,
-      `║ 💾 RAM Used: ${(mem.heapUsed/1048576).toFixed(1)} MB`,
-      `║ 💻 System RAM: ${((sysM.total-sysM.free)/1073741824).toFixed(2)}/${(sysM.total/1073741824).toFixed(2)} GB`,
-      `║ 🛡 Protection: 20 طبقة نشطة`,
-      `║ 🔑 Prefix: ${prefix}`,
-      `║ 👑 By: DJAMEL`,
-      `╚══════════════════════════╝`
-    ];
+    const memory = process.memoryUsage();
 
-    message.reply(lines.join("\n"));
+    const totalRam = os.totalmem();
+    const freeRam = os.freemem();
+    const usedRam = totalRam - freeRam;
+
+    const commandCount =
+      global.GoatBot?.commands?.size || 0;
+
+    const botID =
+      global.GoatBot?.botID || "Unknown";
+
+    const prefix =
+      global.GoatBot?.config?.prefix || "/";
+
+    const checkStart = Date.now();
+
+    await new Promise(resolve =>
+      setTimeout(resolve, 10)
+    );
+
+    const responseTime = Date.now() - checkStart;
+
+    const ramUsed =
+      (memory.heapUsed / 1048576).toFixed(1);
+
+    const systemUsed =
+      (usedRam / 1073741824).toFixed(2);
+
+    const systemTotal =
+      (totalRam / 1073741824).toFixed(2);
+
+    const text = [
+      "┌─〔 S A I Y A N 〕",
+      "",
+      `› الحالة     : ONLINE`,
+      `› التشغيل    : ${formatUptime(uptime)}`,
+      `› السرعة     : ${responseTime} ms`,
+      `› الأوامر    : ${commandCount}`,
+      "",
+      "〔 موارد النظام 〕",
+      `RAM العملية  : ${ramUsed} MB`,
+      `RAM الجهاز   : ${systemUsed} / ${systemTotal} GB`,
+      "",
+      "〔 معلومات البوت 〕",
+      `ID           : ${botID}`,
+      `Prefix       : ${prefix}`,
+      `الحماية      : ACTIVE`,
+      "",
+      "〔 SA I Y A N 〕",
+      "المطور       : MAGNUS",
+      "└────────────────"
+    ].join("\n");
+
+    return message.reply(text);
   }
 };
