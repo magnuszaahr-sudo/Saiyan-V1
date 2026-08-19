@@ -1,7 +1,7 @@
 {
-  "botName": "Saiyan",
+  "botName": "DAVID V1",
   "botVersion": "2.0.0",
-  "author": "Magnus",
+  "author": "DJAMEL",
   "prefix": "/",
   "language": "ar",
   "timezone": "Africa/Algiers",
@@ -24,7 +24,7 @@
 
   "dashboard": {
     "port": 5000,
-    "password": "saiyan2026"
+    "password": "david2025"
   },
 
   "stealth": {
@@ -65,6 +65,6 @@
 
   "database": {
     "type": "sqlite",
-    "path": "data/saiyan.sqlite"
+    "path": "data/david.sqlite"
   }
 }
