@@ -83,7 +83,7 @@ function downloadAudio(videoUrl, outputFile) {
 module.exports = {
   config: {
     name: "song",
-    aliases: ["mp3", "music", "اغنية", "أغنية", "موسيقى"],
+    aliases: ["mp3", "أغنية"],
     version: "3.0",
     author: "DJAMEL",
     countDown: 10,
