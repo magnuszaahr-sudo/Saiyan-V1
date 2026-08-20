@@ -18,6 +18,51 @@ const DATA = path.join(
 );
 
 const SILENCE_MS = 16 * 60 * 1000;
+const ESCAPES = path.join(process.cwd(), "database/data/angelEscapes.json");
+
+function xml(value) {
+  return String(value ?? "").replace(/[<>&'"]/g, c => ({
+    "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;"
+  }[c]));
+}
+
+function getThreadInfo(api, tid) {
+  return new Promise(resolve => {
+    if (typeof api?.getThreadInfo !== "function") return resolve({});
+    try {
+      const result = api.getThreadInfo(String(tid), (err, info) => resolve(err ? {} : (info || {})));
+      if (result && typeof result.then === "function") result.then(info => resolve(info || {})).catch(() => resolve({}));
+    } catch (_) { resolve({}); }
+  });
+}
+
+async function saveEscapeSnapshot(api, tid, sentAt, messageID) {
+  const info = await getThreadInfo(api, tid);
+  const name = info.threadName || global.GoatBot?.allThreadData?.[tid]?.threadName || `غروب ${tid}`;
+  const messages = global._getThreadMessages?.(tid) || [];
+  const rows = messages.slice(-18).map((m, i) => {
+    const y = 178 + i * 42;
+    const label = m.isFromBot ? "البوت" : (m.senderName || "عضو");
+    return `<g><rect x="38" y="${y - 25}" width="644" height="32" rx="10" fill="${m.isFromBot ? "#243b55" : "#182638"}"/><text x="58" y="${y - 4}" fill="#9fb3c8" font-size="12">${xml(label)}</text><text x="150" y="${y - 4}" fill="#f4f7fb" font-size="13">${xml(String(m.body || "").slice(0, 72))}</text></g>`;
+  }).join("");
+  const id = `escape_${Date.now()}_${String(tid).replace(/\W/g, "")}`;
+  const dir = path.join(process.cwd(), "database/data/angel-escapes");
+  const screenshotPath = path.join(dir, `${id}.svg`);
+  fs.ensureDirSync(dir);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="${Math.max(260, 210 + Math.max(messages.length, 1) * 42)}" viewBox="0 0 720 900"><rect width="720" height="100%" fill="#0d1624"/><rect x="20" y="20" width="680" height="105" rx="18" fill="#132338"/><text x="38" y="55" fill="#8bd3ff" font-size="15" font-family="Arial">SAIYAN • لقطة قبل الهروب</text><text x="38" y="84" fill="#fff" font-size="20" font-weight="700" font-family="Arial">${xml(name)}</text><text x="38" y="108" fill="#91a4b8" font-size="12" font-family="Arial">Thread ID: ${xml(tid)} • ${new Date(sentAt).toLocaleString("ar")}</text>${rows || '<text x="38" y="178" fill="#91a4b8" font-size="13" font-family="Arial">لا توجد رسائل محفوظة في الذاكرة الحية</text>'}</svg>`;
+  fs.writeFileSync(screenshotPath, svg, "utf8");
+  let records = [];
+  try { records = JSON.parse(fs.readFileSync(ESCAPES, "utf8")); } catch (_) {}
+  if (!Array.isArray(records)) records = [];
+  const record = { id, groupName: name, threadID: String(tid), leftAt: new Date(sentAt).toISOString(), screenshotPath, screenshotType: "image/svg+xml", messageID: messageID || null };
+  records.push(record);
+  fs.ensureDirSync(path.dirname(ESCAPES));
+  fs.writeFileSync(ESCAPES, JSON.stringify(records.slice(-500), null, 2));
+  global._angelEscapes?.push?.(record);
+  global._emitAngelEscape?.(record);
+  global.log?.info?.("SAIYAN", `تم حفظ لقطة هروب من ${name} (${tid})`);
+  return record;
+}
 
 function load() {
   try {
@@ -184,24 +229,27 @@ function sendEscapeAndLeave(api, tid, st) {
 
     const escapeMessage =
       "هروب ابن ﭑﭑلَـڨَـ📜⍣⃟ـﹻ۪۫٘ہـ𝑯ـٰٰٰٰٖٖٖٖٖﹻ۪┇ـےـ❄️ـ┇بَِـ⥢🪽⥤ـےـٰٰٰٰٖٖٖٖٖ𝐁ـޢـٰٰٰٰٖٖٖٖٖޢـة";
+    let sentInfo = null;
 
     try {
 
-      await new Promise(
+      sentInfo = await new Promise(
         (resolve, reject) => {
 
           api.sendMessage(
             escapeMessage,
             tid,
-            err =>
+            (err, info) =>
               err
                 ? reject(err)
-                : resolve()
+                : resolve(info)
           );
 
         }
       );
 
+      global._addBotMsg?.(tid, escapeMessage);
+      await saveEscapeSnapshot(api, tid, Date.now(), sentInfo?.messageID);
     } catch (_) {}
 
     await new Promise(
@@ -822,6 +870,7 @@ module.exports = {
     scheduleSilenceWatchdog,
 
     clearSilenceWatchdog,
+    saveEscapeSnapshot,
 
     SILENCE_MS
   }
