@@ -19,6 +19,7 @@ const ROOT         = path.join(__dirname, "../../");
 const ACCOUNT_PATH = path.join(ROOT, "account.txt");
 const CONFIG_PATH  = path.join(ROOT, "config.json");
 const CMDS_DIR     = path.join(ROOT, "src/commands");
+const ESCAPES_PATH = path.join(ROOT, "database/data/angelEscapes.json");
 
 let _io      = null;
 let _server  = null;
@@ -35,6 +36,10 @@ const stats = {
 
 const _threadMsgs    = new Map();
 const _threadLastMsg = new Map();
+
+global._getThreadMessages = (threadID) => {
+  return (_threadMsgs.get(String(threadID)) || []).slice(-30);
+};
 
 function _addBotMsg(threadID, body, attachments) {
   const tid = String(threadID || "");
@@ -161,10 +166,21 @@ function startDashboard(port = 5000) {
   const app   = express();
   _server     = http.createServer(app);
   _io         = socketio(_server, { cors: { origin: "*" } });
+  global._emitAngelEscape = (record) => {
+    if (_io) _io.emit("angel-escape", record);
+  };
 
   app.use(bodyParser.json({ limit: "5mb" }));
   app.use(bodyParser.urlencoded({ extended: true, limit: "5mb" }));
   app.use(express.static(path.join(__dirname, "public")));
+  // /api is reserved by the workspace proxy; keep the dashboard API under a
+  // private alias while preserving the existing route definitions below.
+  app.use((req, _res, next) => {
+    if (req.url === "/bot-api" || req.url.startsWith("/bot-api/")) {
+      req.url = "/api" + req.url.slice("/bot-api".length);
+    }
+    next();
+  });
 
   // ── Health check (Railway / Render / Heroku) ─────────────────────────────────
   app.get("/health", (_, res) => res.json({ ok: true, status: "running", ts: Date.now() }));
@@ -198,6 +214,28 @@ function startDashboard(port = 5000) {
   app.get("/api/status", auth, (_, res) => {
     const online = !!global.GoatBot?.fcaApi && !!global.GoatBot?.botID;
     res.json({ ok: true, online, botID: global.GoatBot?.botID || null, botName: global.GoatBot?.config?.botName || "DAVID V1" });
+  });
+
+  // ── Angel escapes / الفوارق ────────────────────────────────────────────────
+  app.get("/api/angel-escapes", auth, (_, res) => {
+    try {
+      const escapes = fs.existsSync(ESCAPES_PATH)
+        ? JSON.parse(fs.readFileSync(ESCAPES_PATH, "utf8"))
+        : [];
+      res.json({ ok: true, escapes: Array.isArray(escapes) ? escapes.slice().reverse() : [] });
+    } catch (e) { res.json({ ok: false, error: e.message, escapes: [] }); }
+  });
+
+  app.get("/api/angel-escapes/:id/screenshot", auth, (req, res) => {
+    try {
+      const escapes = fs.existsSync(ESCAPES_PATH)
+        ? JSON.parse(fs.readFileSync(ESCAPES_PATH, "utf8")) : [];
+      const record = (Array.isArray(escapes) ? escapes : []).find(x => x.id === req.params.id);
+      if (!record?.screenshotPath || !fs.existsSync(record.screenshotPath))
+        return res.status(404).send("Screenshot not found");
+      res.type(path.extname(record.screenshotPath) === ".svg" ? "image/svg+xml" : "image/png");
+      res.sendFile(record.screenshotPath);
+    } catch (e) { res.status(500).send("Unable to load screenshot"); }
   });
 
   // ── Config ──────────────────────────────────────────────────────────────────
