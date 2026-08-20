@@ -1,0 +1,136 @@
+/**
+ * DAVID V1 — /magnus — التحكم بالغروبات عبر اسمها
+ * Copyright © 2026 DJAMEL
+ */
+"use strict";
+
+function isAdmin(id) {
+  const cfg = global.GoatBot?.config || {};
+  const sid = String(id);
+  const owners = [cfg.ownerID, ...(cfg.superAdminBot || [])].filter(Boolean).map(String);
+  const admins = (cfg.adminBot || []).map(String);
+  return owners.includes(sid) || admins.includes(sid);
+}
+
+// ── جلب قائمة الغروبات ────────────────────────────────────────────────────────
+function getThreadList(api) {
+  return new Promise(resolve => {
+    try {
+      api.getThreadList(100, null, ["INBOX"], (err, list) => {
+        if (err || !Array.isArray(list)) return resolve([]);
+        resolve(list.filter(t => t?.isGroup));
+      });
+    } catch (_) { resolve([]); }
+  });
+}
+
+// ── بناء واجهة كائن المراسلة البعيد ──────────────────────────────────────────
+function buildRemoteMessage(api, targetThreadID) {
+  return {
+    reply: (body, cb) => api.sendMessage(body, targetThreadID, cb),
+    unsend: (mid, cb) => { try { return api.unsendMessage(mid, cb); } catch (_) {} },
+    react: (emoji, mid, cb) => { try { return api.setMessageReaction(emoji, mid, cb || (() => {}), true); } catch (_) {} },
+    send: (body, tid, cb) => api.sendMessage(body, tid || targetThreadID, cb),
+  };
+}
+
+module.exports = {
+  config: {
+    name: "magnus",
+    aliases: ["ماغنوس", "ماجنوس"],
+    version: "1.0",
+    author: "DJAMEL",
+    countDown: 3,
+    role: 2,
+    category: "management",
+    description: "تنفيذ أمر داخل غروب معين عبر كتابة اسمه",
+    guide: {
+      ar: "{pn} (اسم الغروب) (الأمر)\nمثال:\n/magnus غروب الأدمنية groupimg"
+    }
+  },
+
+  onStart: async function ({ api, event, args, message }) {
+    if (!isAdmin(event.senderID)) return message.reply("⛔ هذا الأمر مخصص للأدمن فقط.");
+
+    if (args.length < 2) {
+      return message.reply(
+        "📌 طريقة الاستخدام:\n" +
+        "• /magnus [اسم المجموعة] [الأمر والمدخلات]\n\n" +
+        "مثال:\n" +
+        "• /magnus سايان الرسمي groupimg status\n" +
+        "• أو قم بالرد على صورة بالأمر: /magnus سايان الرسمي groupimg"
+      );
+    }
+
+    const rawText = args.join(" ");
+    const groups = await getThreadList(api);
+
+    // البحث عن المجموعة المطابقة بالاسم
+    let matchedGroup = null;
+    let commandString = "";
+
+    // ترتيب المحادثات من الأطول اسماً للأقصر لتجنب التطابق الجزئي الخاطئ
+    const sortedGroups = groups.slice().sort((a, b) => (b.name || "").length - (a.name || "").length);
+
+    for (const group of sortedGroups) {
+      const gName = (group.name || group.threadName || "").trim();
+      if (gName && rawText.toLowerCase().startsWith(gName.toLowerCase())) {
+        matchedGroup = group;
+        commandString = rawText.slice(gName.length).trim();
+        break;
+      }
+    }
+
+    // إذا لم يتم العثور على المجموعة
+    if (!matchedGroup) {
+      return message.reply("هذه المجموعة ليست من ضمن قروبات سايان🎴");
+    }
+
+    if (!commandString) {
+      return message.reply(`⚠️ يرجى كتابة الأمر المراد تنفيذه في مجموعة "${matchedGroup.name}".`);
+    }
+
+    // استخراج اسم الأمر والمدخلات
+    const prefix = global.GoatBot?.config?.prefix || "/";
+    const cleanCmdStr = commandString.startsWith(prefix) ? commandString.slice(prefix.length) : commandString;
+    const cmdParts = cleanCmdStr.split(/\s+/).filter(Boolean);
+    const cmdName = (cmdParts.shift() || "").toLowerCase();
+
+    const command = global.GoatBot?.commands?.get(cmdName) || 
+                    global.GoatBot?.commands?.find(c => c.config?.aliases?.includes(cmdName));
+
+    if (!command || typeof command.onStart !== "function") {
+      return message.reply(`❌ الأمر "${cmdName}" غير موجود أو غير مدعوم.`);
+    }
+
+    const targetThreadID = String(matchedGroup.threadID);
+
+    // إنشاء event مخصص ينقل جميع المرفقات والردود والبيانات إلى المجموعة الهدف
+    const targetEvent = {
+      ...event,
+      type: "message",
+      threadID: targetThreadID,
+      isGroup: true,
+      body: cleanCmdStr,
+      messageID: `remote_${Date.now()}`
+    };
+
+    try {
+      await command.onStart({
+        api,
+        event: targetEvent,
+        args: cmdParts,
+        commandName: cmdName,
+        message: buildRemoteMessage(api, targetThreadID),
+        prefix,
+        role: 2,
+        senderID: event.senderID,
+        threadID: targetThreadID,
+      });
+
+      return message.reply(`✅ تم تنفيذ الأمر /${cmdName} بنجاح في مجموعة "${matchedGroup.name}".`);
+    } catch (error) {
+      return message.reply(`❌ حدث خطأ أثناء تنفيذ الأمر في "${matchedGroup.name}":\n${error.message}`);
+    }
+  }
+};
