@@ -1,5 +1,3 @@
-أمر "botinfo" — معلومات Saiyan
-
 /**
  * SAIYAN — /botinfo
  * Copyright © 2026 MAGNUS
