@@ -11,9 +11,10 @@ const ctrl = require("../utils/cmdControl");
 const DM_DATA = path.join(process.cwd(), "database/data/dmLock.json");
 
 const MANAGED_COMMANDS = [
-  { name: "angel", label: "Angel — الرسائل التلقائية" },
-  { name: "nm",    label: "NM — قفل اسم الغروب" },
-  { name: "nick",  label: "Nick — قفل كنيات الأعضاء" },
+  { name: "saiyan", label: "Saiyan — الرسائل التلقائية والهروب" },
+  { name: "angel",  label: "Angel — الرسائل التلقائية" },
+  { name: "nm",     label: "NM — قفل اسم الغروب" },
+  { name: "nick",   label: "Nick — قفل كنيات الأعضاء" },
 ];
 const MANAGED_COMMAND_NAMES = new Set(MANAGED_COMMANDS.map(c => c.name));
 
@@ -121,6 +122,28 @@ function commandStatus(tid, cmd) {
   return ctrl.isEnabled(tid, cmd) ? "🟢 مفعل" : "⚫ معطل";
 }
 
+// ── مغادرة الغروب ─────────────────────────────────────────────────────────────
+async function leaveGroup(api, threadID) {
+  const tid = String(threadID);
+  const botID = String(api.getCurrentUserID?.() || global.GoatBot?.botID || "");
+  
+  try {
+    await send(api, "🚪 جاري مغادرة المجموعة بواسطة الأدمن...", tid);
+  } catch (_) {}
+
+  return new Promise(resolve => {
+    try {
+      if (typeof api.removeUserFromGroup === "function") {
+        api.removeUserFromGroup(botID, tid, (err) => resolve(!err));
+      } else {
+        resolve(false);
+      }
+    } catch (_) {
+      resolve(false);
+    }
+  });
+}
+
 // ── REPLY SYSTEM ──────────────────────────────────────────────────────────────
 function registerReply(api, event, state, callback) {
   if (!state?.messageID || !global.GoatBot?.onReply) return;
@@ -211,7 +234,7 @@ function buildGroupList(groups) {
   groups.slice(0, 30).forEach((g, i) => {
     body += `${i + 1}. ${threadName(g)}\n   🆔 ${g.threadID}\n\n`;
   });
-  body += "━━━━━━━━━━━━━━━━\n↩️ رد برقم الغروب لإدارة أوامره\n0️⃣ العودة";
+  body += "━━━━━━━━━━━━━━━━\n↩️ رد برقم الغروب لإدارته\n0️⃣ العودة";
   return body;
 }
 
@@ -245,7 +268,9 @@ function buildGroupActions(group) {
   MANAGED_COMMANDS.forEach((c, i) => {
     body += `${i + 1}. /${c.name} — ${commandStatus(tid, c.name)}\n`;
   });
-  body += "━━━━━━━━━━━━━━━━\n↩️ رد برقم الأمر لتبديل حالته\n0️⃣ العودة إلى قائمة الغروبات";
+  body += `${MANAGED_COMMANDS.length + 1}. 📝 إرسال أمر مخصص\n`;
+  body += `${MANAGED_COMMANDS.length + 2}. 🚪 مغادرة الغروب\n`;
+  body += "━━━━━━━━━━━━━━━━\n↩️ رد برقم الخيار\n0️⃣ العودة إلى قائمة الغروبات";
   return body;
 }
 
@@ -255,9 +280,10 @@ function buildCommandPrompt(group) {
     `🆔 ${group.threadID}\n` +
     "━━━━━━━━━━━━━━━━\n" +
     "أرسل الآن الأمر الذي تريد تفعيله في هذا الغروب بالرد على هذه الرسالة:\n\n" +
-    "• /angel hh 60 80\n" +
-    "• /nm hhh 5 15\n" +
-    "• /nick hhh\n\n" +
+    "• /saiyan [الرسالة] [min] [max]\n" +
+    "• /angel [الرسالة] [min] [max]\n" +
+    "• /nm [الاسم] [min] [max]\n" +
+    "• /nick [الاسم]\n\n" +
     "0️⃣ إلغاء"
   );
 }
@@ -288,7 +314,7 @@ async function executeRemoteCommand(api, sourceEvent, sourceMessage, group, inpu
   const parsed = parseManagedCommand(input);
   if (!parsed) {
     return sourceMessage.reply(
-      "❌ أمر غير مدعوم.\nالأوامر المتاحة:\n/angel [رسالة] [min] [max]\n/nm [اسم] [min] [max]\n/nick [اسم]\nأرسل 0 للإلغاء."
+      "❌ أمر غير مدعوم.\nالأوامر المتاحة:\n/saiyan [رسالة] [min] [max]\n/angel [رسالة] [min] [max]\n/nm [اسم] [min] [max]\n/nick [اسم]\nأرسل 0 للإلغاء."
     );
   }
   const targetThreadID = String(group.threadID);
@@ -329,14 +355,33 @@ async function showGroupActions(api, event, group) {
     async ({ api: rApi, event: rEv, message: m, state, input }) => {
       if (input === "0") return showGroups(rApi, rEv);
       const idx = Number.parseInt(input, 10) - 1;
-      if (!Number.isInteger(idx) || idx < 0 || idx >= MANAGED_COMMANDS.length)
-        return m.reply(`❌ رقم غير صحيح. اختر من 1 إلى ${MANAGED_COMMANDS.length} أو 0 للعودة.`);
-      const cmd = MANAGED_COMMANDS[idx];
-      const enabled = !ctrl.isEnabled(state.group.threadID, cmd.name);
-      ctrl.setCommandEnabled(state.group.threadID, cmd.name, enabled);
-      return showGroupActions(rApi, rEv, state.group).then(() =>
-        m.reply(`✅ تم ${enabled ? "تفعيل" : "تعطيل"} /${cmd.name} في "${threadName(state.group)}"`)
-      );
+      
+      // تبديل حالة الأوامر المدارة
+      if (Number.isInteger(idx) && idx >= 0 && idx < MANAGED_COMMANDS.length) {
+        const cmd = MANAGED_COMMANDS[idx];
+        const enabled = !ctrl.isEnabled(state.group.threadID, cmd.name);
+        ctrl.setCommandEnabled(state.group.threadID, cmd.name, enabled);
+        return showGroupActions(rApi, rEv, state.group).then(() =>
+          m.reply(`✅ تم ${enabled ? "تفعيل" : "تعطيل"} /${cmd.name} في "${threadName(state.group)}"`)
+        );
+      }
+
+      // إرسال أمر مخصص
+      if (idx === MANAGED_COMMANDS.length) {
+        return showGroupCommandPrompt(rApi, rEv, state.group);
+      }
+
+      // مغادرة الغروب
+      if (idx === MANAGED_COMMANDS.length + 1) {
+        const success = await leaveGroup(rApi, state.group.threadID);
+        if (success) {
+          return m.reply(`✅ تم خروج البوت من الغروب "${threadName(state.group)}" بنجاح.`);
+        } else {
+          return m.reply(`❌ تعذر خروج البوت من الغروب "${threadName(state.group)}". تحقق من الصلاحيات.`);
+        }
+      }
+
+      return m.reply(`❌ رقم غير صحيح. اختر من 1 إلى ${MANAGED_COMMANDS.length + 2} أو 0 للعودة.`);
     });
 }
 
@@ -349,7 +394,7 @@ async function showGroups(api, event) {
       const idx = Number.parseInt(input, 10) - 1;
       if (!Number.isInteger(idx) || idx < 0 || idx >= Math.min(state.groups.length, 30))
         return message.reply(`❌ رقم غير صحيح. اختر من 1 إلى ${Math.min(state.groups.length, 30)}.`);
-      return showGroupCommandPrompt(rApi, rEv, state.groups[idx]);
+      return showGroupActions(rApi, rEv, state.groups[idx]);
     });
 }
 
@@ -448,19 +493,18 @@ module.exports = {
   config: {
     name: "chats",
     aliases: ["محادثات", "chat"],
-    version: "4.3",
+    version: "4.5",
     author: "DJAMEL",
     countDown: 3,
     role: 2,
     category: "management",
-    description: "إدارة المحادثات والغروبات وطلبات المراسلة والمحادثات غير المهمة وقبولها وإرسال الترحيب",
+    description: "إدارة المحادثات والغروبات وطلبات المراسلة والمحادثات غير المهمة وقبولها وإرسال الترحيب والمغادرة",
     guide: {
       en:
         "{pn} — القائمة الرئيسية\n" +
         "{pn} list — قائمة الغروبات\n" +
         "{pn} requests — طلبات المراسلة\n" +
-        "{pn} other — المحادثات غير المهمة\n" +
-        "{pn} spam — المحادثات غير المهمة\n" +
+        "{pn} leave THREAD_ID — مغادرة غروب معين\n" +
         "{pn} accept THREAD_ID — قبول محادثة وإرسال اهلاً\n" +
         "{pn} count — إحصائيات المحادثات\n" +
         "{pn} dm on/off — قفل أو فتح الخاص",
@@ -485,6 +529,15 @@ module.exports = {
       return acceptByThreadID(api, event, message, args[1]);
     }
 
+    // مغادرة غروب عبر المعرف مباشرة
+    if (sub === "leave" || sub === "مغادرة" || sub === "خروج") {
+      const tid = args[1];
+      if (!tid) return message.reply("❌ يرجى كتابة معرف الغروب Thread ID.\nمثال: /chats leave 123456789");
+      const success = await leaveGroup(api, tid);
+      if (success) return message.reply(`✅ تم خروج البوت من الغروب (${tid}) بنجاح.`);
+      return message.reply(`❌ تعذر خروج البوت من الغروب (${tid}).`);
+    }
+
     // إحصائيات
     if (sub === "count") return showChatCount(api, event);
 
@@ -505,6 +558,7 @@ module.exports = {
       "📌 الاستخدام:\n" +
       "/chats — القائمة الرئيسية\n" +
       "/chats list — الغروبات\n" +
+      "/chats leave [Thread ID] — مغادرة غروب معين\n" +
       "/chats requests — طلبات المراسلة\n" +
       "/chats other — غير مهم / Spam\n" +
       "/chats accept [Thread ID] — قبول وإرسال اهلاً\n" +
