@@ -922,6 +922,14 @@ input:checked+.slider::before{transform:translateX(21px);}
 .empty-state .es-icon{font-size:42px;margin-bottom:12px;opacity:.6;}
 .empty-state p{font-size:13px;}
 .section{margin-bottom:14px;}
+.escape-hero{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-radius:18px;background:linear-gradient(135deg,rgba(191,90,242,.18),rgba(10,132,255,.12));border:1px solid rgba(191,90,242,.25);margin-bottom:14px;}
+.escape-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+.escape-card{overflow:hidden;padding:0!important;border:1px solid rgba(191,90,242,.2);background:rgba(17,25,39,.86);}
+.escape-card img{display:block;width:100%;height:220px;object-fit:cover;background:#0d1624;border-bottom:1px solid rgba(255,255,255,.08);}
+.escape-card-body{padding:14px 16px;}
+.escape-name{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.escape-meta{color:var(--t2);font-size:11px;line-height:1.9;margin-top:7px;}
+.escape-empty{text-align:center;padding:50px 20px;color:var(--t2);}
 
 /* ════ TOAST ════ */
 #toast-container{
@@ -1217,6 +1225,10 @@ input:checked+.slider::before{transform:translateX(21px);}
     <div class="bn-indicator"></div>
     <span class="bn-ic">📦</span>أوامر
   </button>
+  <button class="bn" data-tab="escapes">
+    <div class="bn-indicator"></div>
+    <span class="bn-ic">🪽</span>الفوارق
+  </button>
   <button class="bn" data-tab="activation">
     <div class="bn-indicator"></div>
     <span class="bn-ic">🎛</span>تفعيل
@@ -1298,6 +1310,7 @@ input:checked+.slider::before{transform:translateX(21px);}
     <button class="tab messenger-tab" data-tab="messenger">💬 مسنجر</button>
     <button class="tab" data-tab="cookies">🍪 الكوكيز</button>
     <button class="tab" data-tab="commands">📦 الأوامر</button>
+    <button class="tab" data-tab="escapes">🪽 الفوارق</button>
     <button class="tab" data-tab="activation">🎛 التفعيل</button>
     <button class="tab" data-tab="editor">✏️ المحرر</button>
     <button class="tab" data-tab="protection">🛡 الحماية</button>
@@ -1481,6 +1494,21 @@ input:checked+.slider::before{transform:translateX(21px);}
         <button class="btn btn-primary" id="btn-upload-cookies" onclick="uploadCookies()">📤 رفع وتسجيل الدخول</button>
         <button class="btn btn-ghost" onclick="document.getElementById('cookieInput').value=''">🗑 مسح</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ─── Commands ──────────────────────────────────── -->
+  <!-- ─── Angel escapes ─────────────────────────────── -->
+  <div class="tab-pane" id="tab-escapes">
+    <div class="escape-hero">
+      <div>
+        <div class="card-title" style="margin-bottom:5px;">🪽 الفوارق</div>
+        <div style="font-size:12px;color:var(--t2);">سجلّ لحظات خروج SAIYAN مع لقطة فورية للمحادثة قبل المغادرة.</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="loadEscapes()">🔄 تحديث</button>
+    </div>
+    <div class="escape-grid" id="escapeGrid">
+      <div class="card escape-empty">🔄 جاري تحميل عمليات الهروب…</div>
     </div>
   </div>
 
@@ -2137,6 +2165,10 @@ function initSocket() {
   _socket.on("config-reloaded",  () => toast("🔄 الإعدادات تحدثت", "success"));
   _socket.on("pong-bot",         d => toast(`🏓 ${Date.now() - d.ts}ms`, "success"));
   _socket.on("messenger-msg",    d => onMessengerMsg(d));
+  _socket.on("angel-escape",     () => {
+    if (document.getElementById("tab-escapes")?.classList.contains("active")) loadEscapes();
+    toast("🪽 تم تسجيل عملية هروب جديدة", "success");
+  });
 }
 
 /* ─── Status ─────────────────────────────────────── */
@@ -2200,6 +2232,7 @@ async function refreshStats() {
 
 /* ─── API ────────────────────────────────────────── */
 async function apiFetch(url, opts = {}, useToken = true) {
+  if (url.startsWith("/api")) url = "/bot-api" + url.slice(4);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
@@ -2214,6 +2247,34 @@ async function apiFetch(url, opts = {}, useToken = true) {
     if (e.name === "AbortError") return { ok:false, error:"انتهت مهلة الاتصال" };
     return { ok:false, error:e.message };
   }
+}
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+async function loadEscapes() {
+  const grid = document.getElementById("escapeGrid");
+  if (!grid) return;
+  const r = await apiFetch("/api/angel-escapes");
+  if (!r?.ok) {
+    grid.innerHTML = `<div class="card escape-empty">❌ ${escapeHtml(r?.error || "تعذر تحميل السجل")}</div>`;
+    return;
+  }
+  const records = r.escapes || [];
+  if (!records.length) {
+    grid.innerHTML = `<div class="card escape-empty">🪽 لا توجد عمليات هروب مسجلة حتى الآن.</div>`;
+    return;
+  }
+  grid.innerHTML = records.map(item => {
+    const shot = `/bot-api/angel-escapes/${encodeURIComponent(item.id)}/screenshot?token=${encodeURIComponent(_token)}`;
+    const when = item.leftAt ? new Date(item.leftAt).toLocaleString("ar") : "—";
+    return `<article class="card escape-card">
+      <img src="${shot}" alt="لقطة محادثة ${escapeHtml(item.groupName)}" loading="lazy" onerror="this.alt='تعذر تحميل اللقطة'">
+      <div class="escape-card-body">
+        <div class="escape-name">🪽 ${escapeHtml(item.groupName || "غروب بدون اسم")}</div>
+        <div class="escape-meta">🕒 ${escapeHtml(when)}<br>🆔 ${escapeHtml(item.threadID || "—")}</div>
+      </div>
+    </article>`;
+  }).join("");
 }
 function showLoginAgain() {
   _token = ""; localStorage.removeItem("david_token");
@@ -2236,6 +2297,7 @@ function switchTab(name) {
 
   _prevTab = name;
   if (name === "commands" || name === "activation") loadCommandsQuiet();
+  if (name === "escapes") loadEscapes();
   if (name === "messages") loadMessages();
   if (name === "messenger") { loadMessengerThreads(); }
   if (name === "logs") { const box = document.getElementById("logBox"); if (box && _autoScroll) box.scrollTop = box.scrollHeight; }
@@ -3370,6 +3432,7 @@ const TAB_THEMES = {
   messenger:  { img:"/angel2.png", tint:"rgba(191,90,242,.10)", orbColor:"#BF5AF2" },
   cookies:    { img:"/angel.png",  tint:"rgba(255,159,10,.07)",  orbColor:"#FF9F0A" },
   commands:   { img:"/angel2.png", tint:"rgba(50,215,75,.07)",   orbColor:"#32D74B" },
+  escapes:    { img:"/angel2.png", tint:"rgba(191,90,242,.10)",  orbColor:"#BF5AF2" },
   activation: { img:"/angel.png",  tint:"rgba(90,200,250,.07)",  orbColor:"#5AC8FA" },
   editor:     { img:"/angel2.png", tint:"rgba(10,132,255,.09)",  orbColor:"#0A84FF" },
   protection: { img:"/angel.png",  tint:"rgba(50,215,75,.09)",   orbColor:"#32D74B" },
@@ -3397,7 +3460,7 @@ function updateTabBackground(tab) {
 /* ═══════════════════════════════════════════════════
    SWIPE GESTURE — navigate tabs by swiping left/right
    ═══════════════════════════════════════════════════ */
-const TAB_ORDER = ["control","messenger","cookies","commands","activation","editor","protection","settings","messages","logs","ai","files","railway"];
+const TAB_ORDER = ["control","messenger","cookies","commands","escapes","activation","editor","protection","settings","messages","logs","ai","files","railway"];
 
 let _touchStartX = 0, _touchStartY = 0, _touchStartTime = 0;
 let _swipeHintTimer = null;
@@ -3448,7 +3511,7 @@ function showSwipeHint(text) {
 }
 
 const TAB_LABELS = {
-  control:"الرئيسية", messenger:"مسنجر", cookies:"كوكيز", commands:"أوامر",
+  control:"الرئيسية", messenger:"مسنجر", cookies:"كوكيز", commands:"أوامر", escapes:"الفوارق",
   activation:"تفعيل", editor:"محرر", protection:"حماية",
   settings:"إعدادات", messages:"رسائل", logs:"سجلات",
   ai:"ذكاء AI", files:"ملفات", railway:"Railway 🚀"
