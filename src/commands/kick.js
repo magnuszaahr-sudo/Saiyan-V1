@@ -8,7 +8,7 @@
 module.exports = {
   config: {
     name: "kick",
-    aliases: ["طرد", "remove"],
+    aliases: ["remove", "اك"],
     version: "2.0",
     author: "DJAMEL",
     countDown: 5,
